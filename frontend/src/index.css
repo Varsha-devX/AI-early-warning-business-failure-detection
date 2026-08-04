@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-surface-950 text-gray-100 font-sans antialiased;
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-900;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-700 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-surface-200;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-300 hover:border-brand-500/30 hover:shadow-lg hover:shadow-brand-500/5;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-brand-400 via-purple-400 to-pink-400 bg-clip-text text-transparent;
+  }
+
+  .gradient-border {
+    @apply relative;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
+    border: 1px solid rgba(99, 102, 241, 0.2);
+  }
+
+  .risk-badge-low {
+    @apply bg-emerald-500/15 text-emerald-400 border border-emerald-500/30;
+  }
+
+  .risk-badge-medium {
+    @apply bg-amber-500/15 text-amber-400 border border-amber-500/30;
+  }
+
+  .risk-badge-high {
+    @apply bg-red-500/15 text-red-400 border border-red-500/30;
+  }
+
+  .risk-badge-critical {
+    @apply bg-red-600/20 text-red-300 border border-red-500/40;
+  }
+
+  .stat-card {
+    @apply glass-card p-5 flex flex-col gap-2;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold text-white flex items-center gap-2;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 bg-gradient-to-r from-brand-600 to-purple-600 text-white font-semibold 
+           rounded-xl transition-all duration-300 hover:from-brand-500 hover:to-purple-500 
+           hover:shadow-lg hover:shadow-brand-500/25 active:scale-[0.98] disabled:opacity-50 
+           disabled:cursor-not-allowed disabled:hover:shadow-none;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 bg-surface-800 text-gray-200 font-medium rounded-xl border border-white/10
+           transition-all duration-300 hover:bg-surface-700 hover:border-white/20;
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation: slideUp 0.5s ease-out both;
+  }
+
+  .animation-delay-100 { animation-delay: 0.1s; }
+  .animation-delay-200 { animation-delay: 0.2s; }
+  .animation-delay-300 { animation-delay: 0.3s; }
+  .animation-delay-400 { animation-delay: 0.4s; }
+  .animation-delay-500 { animation-delay: 0.5s; }
+}
