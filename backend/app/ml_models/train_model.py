@@ -149,7 +149,6 @@ def train_model(
         scale_pos_weight=len(y_train[y_train == 0]) / max(len(y_train[y_train == 1]), 1),
         random_state=42,
         eval_metric="logloss",
-        use_label_encoder=False,
     )
 
     model.fit(

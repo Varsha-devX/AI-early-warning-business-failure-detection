@@ -59,7 +59,6 @@ httpx==0.28.1
 # --- Testing ---
 pytest==8.3.4
 pytest-asyncio==0.25.0
-httpx==0.28.1
 
 # --- CORS ---
 starlette==0.41.3

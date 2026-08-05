@@ -102,6 +102,10 @@ def create_app() -> FastAPI:
     from app.api.routes import router
     app.include_router(router)
 
+    # Register demo routes (for testing without real PDFs)
+    from app.api.demo_routes import demo_router
+    app.include_router(demo_router)
+
     # Root endpoint
     @app.get("/", tags=["Root"])
     async def root():

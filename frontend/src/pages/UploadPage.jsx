@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { HiOutlineCloudUpload, HiOutlineDocumentText, HiOutlineNewspaper, HiOutlineSparkles, HiOutlineTrash } from 'react-icons/hi2';
+import { HiOutlineDocumentText, HiOutlineNewspaper, HiOutlineSparkles, HiOutlineTrash } from 'react-icons/hi2';
+import { HiOutlineCloudUpload } from 'react-icons/hi';
 import api from '../api/client';
 
 export default function UploadPage() {
