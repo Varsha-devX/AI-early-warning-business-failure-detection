@@ -1,4 +1,4 @@
-# AI Corporate Health & Early-Warning Intelligence Platform
+# EarlySight AI — AI Early Warning Business Failure Detection
 
 An AI-powered Business Health Intelligence Platform that helps banks, investors, startup founders, business owners, and financial analysts identify early warning signs of financial distress **before** a company reaches bankruptcy.
 
@@ -146,7 +146,7 @@ docker-compose up --build
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/upload-financials` | Upload financial statement PDF |
+| `POST` | `/api/upload-financials` | Upload financial statement (PDF, CSV, JPG, PNG) |
 | `POST` | `/api/upload-news` | Upload news articles PDF |
 | `POST` | `/api/analyze` | Run full analysis pipeline |
 | `POST` | `/api/analyze-upload` | Upload + analyze in one step |
