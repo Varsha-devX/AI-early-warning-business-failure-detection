@@ -33,7 +33,12 @@ export default function UploadPage() {
 
   const financialDropzone = useDropzone({
     onDrop: onDropFinancial,
-    accept: { 'application/pdf': ['.pdf'] },
+    accept: {
+      'application/pdf': ['.pdf'],
+      'text/csv': ['.csv'],
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+    },
     maxFiles: 1,
     maxSize: 50 * 1024 * 1024,
   });
@@ -51,7 +56,11 @@ export default function UploadPage() {
       return;
     }
     if (!financialFile) {
-      toast.error('Please upload a financial statement PDF');
+      toast.error('Please upload a financial statement (PDF, CSV, JPG, PNG)');
+      return;
+    }
+    if (!industry.trim()) {
+      toast.error('Please select an industry');
       return;
     }
 
@@ -84,7 +93,7 @@ export default function UploadPage() {
     try {
       const formData = new FormData();
       formData.append('company_name', companyName.trim());
-      if (industry.trim()) formData.append('industry', industry.trim());
+      formData.append('industry', industry.trim());
       formData.append('financial_file', financialFile);
       if (newsFile) formData.append('news_file', newsFile);
 
@@ -116,13 +125,13 @@ export default function UploadPage() {
       {/* Header */}
       <header className="border-b border-white/[0.06] bg-surface-950/80 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-500 to-purple-600 flex items-center justify-center">
               <HiOutlineSparkles className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-display font-bold text-white">Corporate Health AI</h1>
-              <p className="text-xs text-gray-500">Early-Warning Intelligence Platform</p>
+              <h1 className="text-lg font-display font-bold text-white">EarlySight AI</h1>
+              <p className="text-xs text-gray-500">AI Early Warning Business Failure Detection</p>
             </div>
           </div>
         </div>
@@ -166,27 +175,33 @@ export default function UploadPage() {
               />
             </div>
 
-            {/* Industry */}
+            {/* Industry (required) */}
             <div>
               <label htmlFor="industry" className="block text-sm font-medium text-gray-300 mb-2">
-                Industry (Optional)
+                Industry *
               </label>
-              <input
+              <select
                 id="industry"
-                type="text"
                 value={industry}
                 onChange={(e) => setIndustry(e.target.value)}
-                placeholder="e.g. Retail, Manufacturing, FinTech"
                 className="w-full px-4 py-3 bg-surface-800/80 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
                 disabled={isAnalyzing}
-              />
+              >
+                <option value="">Select industry</option>
+                <option value="Retail">Retail</option>
+                <option value="Manufacturing">Manufacturing</option>
+                <option value="Finance">Finance</option>
+                <option value="Information Technology">Information Technology</option>
+                <option value="E-Commerce">E-Commerce</option>
+                <option value="Other">Other</option>
+              </select>
             </div>
 
             {/* Financial PDF Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 <HiOutlineDocumentText className="inline w-4 h-4 mr-1" />
-                Financial Statement (PDF) *
+                Financial Statement (PDF, CSV, JPG, PNG) *
               </label>
               <div
                 {...financialDropzone.getRootProps()}
@@ -219,7 +234,7 @@ export default function UploadPage() {
                 ) : (
                   <>
                     <HiOutlineCloudUpload className="w-12 h-12 text-gray-500 mx-auto mb-3" />
-                    <p className="text-gray-400">Drag & drop your financial statement PDF here</p>
+                    <p className="text-gray-400">Drag & drop your financial statement (PDF, CSV, JPG, PNG) here</p>
                     <p className="text-sm text-gray-600 mt-1">or click to browse (max 50MB)</p>
                   </>
                 )}

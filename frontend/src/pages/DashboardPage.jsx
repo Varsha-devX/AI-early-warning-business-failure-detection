@@ -111,7 +111,7 @@ export default function DashboardPage() {
                 <HiOutlineSparkles className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h1 className="text-sm font-display font-bold text-white">Corporate Health AI</h1>
+                <h1 className="text-sm font-display font-bold text-white">EarlySight AI</h1>
                 <p className="text-xs text-gray-500">Dashboard</p>
               </div>
             </div>
@@ -188,7 +188,7 @@ export default function DashboardPage() {
       {/* Footer */}
       <footer className="border-t border-white/[0.06] py-6 mt-8">
         <p className="text-center text-xs text-gray-600">
-          AI Corporate Health & Early-Warning Intelligence Platform — Powered by XGBoost, SHAP, FinBERT & Gemini AI
+          AI Early Warning Business Failure Detection — Powered by XGBoost, SHAP, FinBERT & Gemini AI
         </p>
       </footer>
     </div>
