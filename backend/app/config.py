@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     """Central application configuration loaded from environment variables."""
 
     # --- Application ---
-    app_name: str = "AI Corporate Health & Early-Warning Intelligence Platform"
+    app_name: str = "AI Early Warning Business Failure Detection"
     app_env: str = "development"
     debug: bool = True
     host: str = "0.0.0.0"

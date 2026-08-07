@@ -1,1 +1,1 @@
-# AI Corporate Health & Early-Warning Intelligence Platform
+# EarlySight AI — AI Early Warning Business Failure Detection

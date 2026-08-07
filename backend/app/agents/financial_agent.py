@@ -9,6 +9,8 @@ from loguru import logger
 
 from app.agents.state import AnalysisState
 from app.financial_parser.pdf_extractor import PDFExtractor
+from app.financial_parser.csv_extractor import CSVExtractor
+from app.ocr.ocr_processor import OCRProcessor
 from app.financial_parser.data_extractor import FinancialDataExtractor
 from app.risk_engine.ratio_calculator import RatioCalculator
 
@@ -42,10 +44,32 @@ def financial_agent(state: AnalysisState) -> dict:
         return updates
 
     try:
-        # Step 1: Extract text from PDF
+        # Step 1: Extract text from the uploaded file based on extension
         logger.info(f"Extracting text from: {pdf_path}")
-        pdf_extractor = PDFExtractor()
-        extraction_result = pdf_extractor.extract_text(pdf_path)
+        ext = None
+        try:
+            import os
+            ext = os.path.splitext(pdf_path)[1].lower()
+        except Exception:
+            ext = None
+
+        extraction_result = {}
+        if ext == ".pdf" or ext is None:
+            pdf_extractor = PDFExtractor()
+            extraction_result = pdf_extractor.extract_text(pdf_path)
+        elif ext in (".csv",):
+            csv_extractor = CSVExtractor()
+            extraction_result = csv_extractor.extract(pdf_path)
+        elif ext in (".jpg", ".jpeg", ".png"):
+            ocr = OCRProcessor()
+            extraction_result = ocr.process_image(pdf_path)
+            # normalize to match expected keys
+            extraction_result.setdefault("tables", [])
+            extraction_result.setdefault("method", "ocr")
+        else:
+            # Unknown extension — try PDF extractor as fallback
+            pdf_extractor = PDFExtractor()
+            extraction_result = pdf_extractor.extract_text(pdf_path)
 
         updates["raw_text"] = extraction_result.get("text", "")
         updates["raw_tables"] = extraction_result.get("tables", [])

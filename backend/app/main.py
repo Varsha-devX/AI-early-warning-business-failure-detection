@@ -1,7 +1,7 @@
 """
 FastAPI Application Entry Point
 ================================
-AI Corporate Health & Early-Warning Intelligence Platform
+EarlySight AI — AI Early Warning Business Failure Detection
 
 Sets up the FastAPI application with:
 - CORS middleware
@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan events: startup and shutdown."""
     # Startup
     logger.info("=" * 60)
-    logger.info("AI Corporate Health & Early-Warning Intelligence Platform")
+    logger.info("AI Early Warning Business Failure Detection")
     logger.info("=" * 60)
 
     settings = get_settings()
@@ -77,9 +77,9 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="AI Corporate Health & Early-Warning Intelligence Platform",
+        title="EarlySight AI — AI Early Warning Business Failure Detection",
         description=(
-            "AI-powered platform for detecting early warning signs of financial distress. "
+            "EarlySight AI: AI-powered platform for detecting early warning signs of financial distress. "
             "Analyzes financial statements and business news using XGBoost, SHAP, FinBERT, "
             "and Gemini AI to generate actionable business intelligence."
         ),

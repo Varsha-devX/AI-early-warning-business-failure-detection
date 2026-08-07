@@ -112,3 +112,25 @@ class OCRProcessor:
         except Exception as e:
             logger.error(f"Full PDF OCR failed: {e}")
             return {"text": "", "pages": [], "page_count": 0}
+
+    def process_image(self, image_path: str) -> dict:
+        """
+        Process a single image file (JPG/PNG) and return extracted text.
+
+        Returns dict with keys: text, pages, page_count
+        """
+        if not self._tesseract_available:
+            logger.warning("Tesseract not available, cannot OCR image")
+            return {"text": "", "pages": [], "page_count": 0}
+
+        try:
+            from PIL import Image
+            import pytesseract
+
+            img = Image.open(image_path)
+            text = pytesseract.image_to_string(img, lang="eng")
+            logger.info(f"Image OCR complete: {len(text)} chars from {image_path}")
+            return {"text": text, "pages": [text], "page_count": 1}
+        except Exception as e:
+            logger.error(f"Image OCR failed: {e}")
+            return {"text": "", "pages": [], "page_count": 0}

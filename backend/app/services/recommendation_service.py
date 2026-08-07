@@ -82,12 +82,19 @@ class RecommendationService:
         if self.model:
             try:
                 response = self.model.generate_content(prompt)
-                return self._parse_response(response.text)
+                recommendations = self._parse_response(response.text)
             except Exception as e:
                 logger.error(f"Gemini API call failed: {e}")
+                recommendations = self._generate_fallback(ratios, prediction, health_score, business_events)
+        else:
+            recommendations = self._generate_fallback(ratios, prediction, health_score, business_events)
 
-        # Fallback: rule-based recommendations
-        return self._generate_fallback(ratios, prediction, health_score, business_events)
+        recommendations = self._normalize_recommendations(recommendations)
+        recommendations = self._ensure_minimum_recommendations(
+            recommendations, ratios, prediction, health_score, business_events
+        )
+
+        return recommendations
 
     def _build_prompt(
         self,
@@ -184,6 +191,119 @@ Return ONLY valid JSON, no markdown formatting.
                 "summary": text[:500] if text else "Recommendations could not be generated.",
                 "raw_response": text,
             }
+
+    def _normalize_recommendations(self, recommendations: dict) -> dict:
+        """Normalize recommendation payloads to consistent structure."""
+        normalized = {
+            "financial_recommendations": [],
+            "operational_recommendations": [],
+            "strategic_recommendations": [],
+            "risk_mitigation": [],
+            "summary": "",
+            "raw_response": recommendations.get("raw_response", "") if isinstance(recommendations, dict) else "",
+        }
+
+        if not isinstance(recommendations, dict):
+            return normalized
+
+        for key in [
+            "financial_recommendations",
+            "operational_recommendations",
+            "strategic_recommendations",
+            "risk_mitigation",
+        ]:
+            value = recommendations.get(key)
+            if isinstance(value, list):
+                normalized[key] = [item for item in value if isinstance(item, dict)]
+
+        normalized["summary"] = recommendations.get("summary") or "Key recommendations are provided to improve business performance."
+        normalized["raw_response"] = recommendations.get("raw_response", normalized["raw_response"])
+
+        return normalized
+
+    def _ensure_minimum_recommendations(
+        self,
+        recommendations: dict,
+        ratios: dict,
+        prediction: dict,
+        health_score: dict,
+        business_events: list[dict] | None,
+    ) -> dict:
+        """Ensure the report contains at least three recommendations."""
+        if not isinstance(recommendations, dict):
+            recommendations = self._generate_fallback(ratios, prediction, health_score, business_events)
+
+        categories = [
+            "financial_recommendations",
+            "operational_recommendations",
+            "strategic_recommendations",
+            "risk_mitigation",
+        ]
+
+        total = sum(len(recommendations.get(cat, [])) for cat in categories)
+        if total >= 3:
+            return recommendations
+
+        fallback = self._generate_fallback(ratios, prediction, health_score, business_events)
+        existing_titles = {
+            item.get("title") for cat in categories for item in recommendations.get(cat, []) if item.get("title")
+        }
+
+        for cat in categories:
+            for item in fallback.get(cat, []):
+                if total >= 3:
+                    break
+                title = item.get("title")
+                if title and title not in existing_titles:
+                    recommendations[cat].append(item)
+                    existing_titles.add(title)
+                    total += 1
+            if total >= 3:
+                break
+
+        generic_templates = [
+            {
+                "title": "Maintain current financial monitoring",
+                "description": "Continue regular monitoring of cash flow, liquidity, and leverage ratios to prevent adverse changes.",
+                "priority": "Medium",
+                "impact": "Medium",
+            },
+            {
+                "title": "Review operational expenses",
+                "description": "Evaluate recent operating costs and identify areas where expenditure can be reduced without compromising service delivery.",
+                "priority": "Medium",
+                "impact": "Medium",
+            },
+            {
+                "title": "Strengthen risk oversight",
+                "description": "Institute weekly review meetings for finance and operations to monitor emerging risks and ensure timely mitigation actions.",
+                "priority": "Medium",
+                "impact": "Medium",
+            },
+        ]
+
+        generic_index = 0
+        while total < 3 and generic_index < len(generic_templates):
+            item = generic_templates[generic_index]
+            if item["title"] not in existing_titles:
+                recommendations["financial_recommendations"].append(item)
+                existing_titles.add(item["title"])
+                total += 1
+            generic_index += 1
+
+        if total < 3:
+            recommendations["financial_recommendations"].append({
+                "title": "Continue executive oversight",
+                "description": "Ensure leadership reviews the key financial dashboards weekly to respond quickly to adverse changes.",
+                "priority": "Medium",
+                "impact": "Medium",
+            })
+            total += 1
+
+        recommendations["summary"] = recommendations.get("summary") or (
+            f"Generated {total} recommendations to help improve business performance."
+        )
+        return recommendations
 
     def _generate_fallback(
         self,

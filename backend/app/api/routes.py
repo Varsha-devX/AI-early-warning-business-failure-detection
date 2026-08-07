@@ -1,7 +1,7 @@
 """
 REST API Routes
 ===============
-All API endpoints for the AI Corporate Health platform.
+All API endpoints for the EarlySight AI platform.
 """
 
 import os
@@ -36,7 +36,7 @@ def _get_service(db: Session = Depends(get_db)) -> AnalysisService:
     "/upload-financials",
     response_model=UploadResponse,
     summary="Upload financial statement PDF",
-    description="Upload a company's financial statement PDF for analysis.",
+    description="Upload a company's financial statement (PDF, CSV, JPG, PNG) for analysis.",
 )
 async def upload_financials(
     company_name: str = Form(..., description="Company name"),
@@ -44,9 +44,10 @@ async def upload_financials(
     file: UploadFile = File(..., description="Financial statement PDF"),
     service: AnalysisService = Depends(_get_service),
 ):
-    """Upload a financial statement PDF and create a company record."""
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    """Upload a financial statement (PDF, CSV, JPG, PNG) and create a company record."""
+    allowed_exts = ('.pdf', '.csv', '.jpg', '.jpeg', '.png')
+    if not file.filename.lower().endswith(allowed_exts):
+        raise HTTPException(status_code=400, detail="Only PDF, CSV, JPG, or PNG files are supported")
 
     content = await file.read()
     if len(content) == 0:
@@ -147,13 +148,14 @@ async def run_analysis(
 async def upload_and_analyze(
     company_name: str = Form(..., description="Company name"),
     industry: Optional[str] = Form(None, description="Industry sector"),
-    financial_file: UploadFile = File(..., description="Financial statement PDF"),
+    financial_file: UploadFile = File(..., description="Financial statement (PDF, CSV, JPG, PNG)"),
     news_file: Optional[UploadFile] = File(None, description="Optional news PDF"),
     service: AnalysisService = Depends(_get_service),
 ):
     """Combined upload + analysis endpoint for streamlined workflow."""
-    if not financial_file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    allowed_exts = ('.pdf', '.csv', '.jpg', '.jpeg', '.png')
+    if not financial_file.filename.lower().endswith(allowed_exts):
+        raise HTTPException(status_code=400, detail="Only PDF, CSV, JPG, or PNG files are supported")
 
     financial_content = await financial_file.read()
     if len(financial_content) == 0:
@@ -299,4 +301,4 @@ async def download_report(
 @router.get("/health", summary="Health check")
 async def health_check():
     """API health check endpoint."""
-    return {"status": "healthy", "service": "AI Corporate Health Platform"}
+    return {"status": "healthy", "service": "EarlySight AI"}
