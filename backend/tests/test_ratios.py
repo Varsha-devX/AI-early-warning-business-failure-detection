@@ -67,9 +67,21 @@ class TestRatioCalculator:
         assert result["working_capital"] == pytest.approx(-36)
 
     def test_debt_ratio(self, calculator):
+        data = {"total_debt": 60, "total_assets": 100}
+        result = calculator.calculate(data)
+        assert result["debt_ratio"] == pytest.approx(0.6)
+
+    def test_debt_ratio_fallback_to_liabilities(self, calculator):
+        """When total_debt is missing, debt_ratio should fallback to total_liabilities."""
         data = {"total_liabilities": 60, "total_assets": 100}
         result = calculator.calculate(data)
         assert result["debt_ratio"] == pytest.approx(0.6)
+
+    def test_debt_ratio_prefers_total_debt(self, calculator):
+        """When both total_debt and total_liabilities exist, debt_ratio should use total_debt."""
+        data = {"total_debt": 40, "total_liabilities": 80, "total_assets": 100}
+        result = calculator.calculate(data)
+        assert result["debt_ratio"] == pytest.approx(0.4)
 
     def test_return_on_assets(self, calculator):
         data = {"net_profit": 10, "total_assets": 200}
@@ -157,3 +169,54 @@ class TestRatioCalculator:
         assert result["cash_flow_ratio"] < 0
         # Working capital should be negative
         assert result["working_capital"] < 0
+
+    def test_walmart_benchmark(self, calculator):
+        """
+        Walmart FY2025 benchmark test.
+        All ratios should match manually verified values.
+        """
+        data = {
+            "revenue": 713163,
+            "net_profit": 21893,
+            "operating_profit": 30388,
+            "total_debt": 44762,          # Short-term (6596) + Due <1yr (3542) + Long-term (34624)
+            "total_assets": 284668,
+            "total_liabilities": 178781,  # 284668 - 105887
+            "current_assets": 82540,
+            "current_liabilities": 107469,
+            "cash_flow": 41565,
+            "equity": 105887,
+            "inventory": 58079,
+        }
+        result = calculator.calculate(data)
+
+        # Debt/Equity = 44762 / 105887 ≈ 0.42
+        assert result["debt_to_equity"] == pytest.approx(0.4228, abs=0.01)
+
+        # Net Profit Margin = 21893 / 713163 * 100 ≈ 3.07%
+        assert result["net_profit_margin"] == pytest.approx(3.07, abs=0.1)
+
+        # Cash Flow Ratio = 41565 / 107469 ≈ 0.39
+        assert result["cash_flow_ratio"] == pytest.approx(0.3868, abs=0.01)
+
+        # Debt Ratio = 44762 / 284668 ≈ 0.16 (NOT total_liabilities/total_assets)
+        assert result["debt_ratio"] == pytest.approx(0.1572, abs=0.01)
+
+        # ROA = 21893 / 284668 * 100 ≈ 7.69%
+        assert result["return_on_assets"] == pytest.approx(7.69, abs=0.1)
+
+        # ROE = 21893 / 105887 * 100 ≈ 20.67%
+        assert result["return_on_equity"] == pytest.approx(20.67, abs=0.1)
+
+        # Operating Margin = 30388 / 713163 * 100 ≈ 4.26%
+        assert result["operating_margin"] == pytest.approx(4.26, abs=0.1)
+
+        # Current Ratio = 82540 / 107469 ≈ 0.77
+        assert result["current_ratio"] == pytest.approx(0.768, abs=0.01)
+
+        # Quick Ratio = (82540 - 58079) / 107469 ≈ 0.228
+        assert result["quick_ratio"] == pytest.approx(0.2276, abs=0.01)
+
+        # Working Capital = 82540 - 107469 = -24929
+        assert result["working_capital"] == pytest.approx(-24929)
+

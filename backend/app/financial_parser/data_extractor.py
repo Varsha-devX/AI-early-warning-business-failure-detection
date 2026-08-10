@@ -33,30 +33,45 @@ class FinancialDataExtractor:
     )
 
     # Financial field patterns: maps field name → list of regex keyword patterns
+    # ORDER MATTERS: more specific patterns should come first within each field
     FIELD_PATTERNS = {
         "revenue": [
             r"(?:total\s+)?(?:revenue|turnover|net\s+sales|total\s+sales|gross\s+sales|income\s+from\s+operations)",
         ],
         "net_profit": [
-            r"(?:net\s+)?(?:profit|income|earnings)\s*(?:after\s+tax|for\s+the\s+(?:year|period))?",
-            r"PAT\b",
+            r"net\s+(?:profit|income|earnings)\s*(?:after\s+tax|for\s+the\s+(?:year|period)|attributable)?",
             r"profit\s+after\s+tax",
+            r"PAT\b",
+            r"net\s+(?:profit|income)\s+(?:attributable\s+to)",
+            r"consolidated\s+net\s+(?:income|profit)",
         ],
         "operating_profit": [
-            r"(?:operating\s+)?(?:profit|income)\s*(?:before\s+(?:interest|tax|depreciation))?",
-            r"EBIT(?:DA)?\b",
-            r"operating\s+(?:profit|income)",
+            r"operating\s+(?:profit|income|earnings)",
+            r"EBITDA\b",
+            r"EBIT\b",
+            r"profit\s+from\s+operations",
+            r"income\s+from\s+operations\s+before",
         ],
         "total_debt": [
-            r"(?:total\s+)?(?:debt|borrowings|loans)",
-            r"long[\s\-]term\s+(?:debt|borrowings)\s*(?:\+\s*short[\s\-]term\s+(?:debt|borrowings))?",
+            r"total\s+(?:debt|borrowings)",
+            r"total\s+(?:interest[- ]bearing\s+)?(?:debt|borrowings|liabilities)",
+        ],
+        "short_term_debt": [
+            r"short[- ]term\s+(?:debt|borrowings|loans)",
+            r"current\s+(?:portion\s+of\s+)?(?:debt|borrowings|long[- ]term\s+debt)",
+            r"(?:debt|borrowings|notes?\s+payable)\s+(?:due|payable|maturing)\s+within\s+(?:one|1)\s+year",
+            r"(?:short[- ]term|current)\s+(?:notes?\s+payable|commercial\s+paper)",
+        ],
+        "long_term_debt": [
+            r"long[- ]term\s+(?:debt|borrowings|loans)",
+            r"(?:non[- ]current|long[- ]term)\s+(?:portion\s+of\s+)?(?:debt|borrowings)",
+            r"long[- ]term\s+(?:notes?\s+payable|obligations)",
         ],
         "total_assets": [
             r"total\s+assets",
         ],
         "total_liabilities": [
-            r"total\s+liabilities",
-            r"total\s+(?:liabilities\s*(?:and|&)\s*equity|equity\s*(?:and|&)\s*liabilities)",
+            r"total\s+(?:current\s+and\s+non[- ]current\s+)?liabilities(?!\s+(?:and|&)\s+(?:equity|stockholders|shareholders))",
         ],
         "current_assets": [
             r"(?:total\s+)?current\s+assets",
@@ -65,15 +80,46 @@ class FinancialDataExtractor:
             r"(?:total\s+)?current\s+liabilities",
         ],
         "cash_flow": [
-            r"(?:net\s+)?cash\s+(?:flow\s+)?from\s+(?:operating|operations)",
+            r"(?:net\s+)?cash\s+(?:flow\s+)?(?:from|provided\s+by|used\s+in)\s+(?:operating\s+activities|operations)",
+            r"(?:net\s+)?cash\s+provided\s+by\s+operating",
             r"(?:operating\s+)?cash\s+flow",
             r"cash\s+(?:generated|used)\s+(?:from|in)\s+operations",
+            r"cash\s+flows?\s+from\s+operating\s+activities",
         ],
         "equity": [
-            r"(?:total\s+)?(?:shareholders?['\u2019]?\s+)?(?:equity|net\s+worth|stockholders?\s+equity)",
+            r"(?:total\s+)?(?:shareholders?['\u2019]?\s+|stockholders?['\u2019]?\s+)?equity",
+            r"(?:total\s+)?net\s+worth",
         ],
         "inventory": [
             r"(?:total\s+)?inventor(?:y|ies)",
+        ],
+    }
+
+    # Negative-match patterns: if a line matches these, SKIP it for the given field
+    FIELD_EXCLUSIONS = {
+        "net_profit": [
+            r"comprehensive\s+(?:income|loss)",
+            r"other\s+(?:income|expense)",
+            r"income\s+tax",
+            r"before\s+tax",
+            r"per\s+(?:share|unit)",
+            r"earnings\s+per\s+share",
+            r"EPS\b",
+            r"diluted",
+            r"basic\s+(?:and\s+diluted)?",
+        ],
+        "operating_profit": [
+            r"non[- ]operating",
+            r"other\s+(?:income|expense)",
+        ],
+        "total_liabilities": [
+            r"liabilities\s+(?:and|&)\s+(?:equity|stockholders|shareholders)",
+            r"equity\s+(?:and|&)\s+liabilities",
+        ],
+        "equity": [
+            r"liabilities\s+(?:and|&)\s+(?:equity|stockholders|shareholders)",
+            r"equity\s+(?:and|&)\s+liabilities",
+            r"total\s+(?:liabilities\s+(?:and|&)\s+(?:equity|stockholders|shareholders))",
         ],
     }
 
@@ -114,7 +160,7 @@ class FinancialDataExtractor:
 
         # Phase 1: Extract from raw text using regex
         for field_name, patterns in self.FIELD_PATTERNS.items():
-            value = self._extract_field_from_text(text, patterns)
+            value = self._extract_field_from_text(text, patterns, field_name)
             if value is not None:
                 results[field_name] = value
                 logger.debug(f"Extracted {field_name} = {value} from text")
@@ -138,14 +184,15 @@ class FinancialDataExtractor:
 
         return results
 
-    def _extract_field_from_text(self, text: str, keyword_patterns: list[str]) -> Optional[float]:
+    def _extract_field_from_text(self, text: str, keyword_patterns: list[str], field_name: str = "") -> Optional[float]:
         """Search text for a financial field by keyword patterns and extract its numeric value."""
         text_lower = text.lower()
+        exclusions = self.FIELD_EXCLUSIONS.get(field_name, [])
 
         for kw_pattern in keyword_patterns:
             # Build a pattern: keyword … number (possibly with unit)
             full_pattern = (
-                rf'(?:^|[\n\r])\s*'
+                rf'(?:^|[\n\r])[\s]*'
                 rf'({kw_pattern})'
                 rf'[\s:=\-–—]*'
                 rf'(?:[₹$]\s*)?'
@@ -153,12 +200,28 @@ class FinancialDataExtractor:
                 rf'\s*'
                 rf'(crores?|cr\.?|lakhs?|lacs?|millions?|mn|billions?|bn|thousands?|k)?'
             )
-            matches = re.findall(full_pattern, text_lower, re.IGNORECASE | re.MULTILINE)
-            if matches:
-                # Take the first match
-                match = matches[0]
-                raw_number = match[1] if len(match) > 1 else None
-                unit = match[2].strip().rstrip('.') if len(match) > 2 and match[2] else None
+            for m in re.finditer(full_pattern, text_lower, re.IGNORECASE | re.MULTILINE):
+                # Get the full line containing this match for exclusion checking.
+                # Handle \r\n, \r, and \n line endings by finding nearest line boundary.
+                # Use start of group 1 (the keyword) not start of full match (which includes \n)
+                keyword_pos = m.start(1)
+                # Search backwards for any newline character
+                line_start = keyword_pos
+                while line_start > 0 and text_lower[line_start - 1] not in '\r\n':
+                    line_start -= 1
+                # Search forwards from keyword for any newline character
+                line_end = keyword_pos
+                while line_end < len(text_lower) and text_lower[line_end] not in '\r\n':
+                    line_end += 1
+                matched_line = text_lower[line_start:line_end]
+
+                # Check exclusion patterns against the SPECIFIC matched line
+                if self._should_exclude_line(matched_line, exclusions):
+                    continue
+
+                groups = m.groups()
+                raw_number = groups[1] if len(groups) > 1 else None
+                unit = groups[2].strip().rstrip('.') if len(groups) > 2 and groups[2] else None
 
                 if raw_number:
                     value = self._parse_number(raw_number, unit)
@@ -176,15 +239,26 @@ class FinancialDataExtractor:
             )
             inline_matches = re.findall(inline_pattern, text_lower, re.IGNORECASE)
             if inline_matches:
-                match = inline_matches[0]
-                raw_number = match[0] if match else None
-                unit = match[1].strip().rstrip('.') if len(match) > 1 and match[1] else None
-                if raw_number:
-                    value = self._parse_number(raw_number, unit)
-                    if value is not None:
-                        return value
+                for match in inline_matches:
+                    raw_number = match[0] if match else None
+                    unit = match[1].strip().rstrip('.') if len(match) > 1 and match[1] else None
+                    if raw_number:
+                        value = self._parse_number(raw_number, unit)
+                        if value is not None:
+                            return value
 
         return None
+
+    def _should_exclude_line(self, line: str, exclusions: list[str]) -> bool:
+        """Check if a specific line should be excluded based on exclusion patterns."""
+        if not exclusions:
+            return False
+
+        for exc_pattern in exclusions:
+            if re.search(exc_pattern, line, re.IGNORECASE):
+                logger.debug(f"Excluding line '{line.strip()}' due to exclusion pattern '{exc_pattern}'")
+                return True
+        return False
 
     def _extract_from_tables(self, tables: list) -> dict:
         """Extract financial fields from tabular data."""
@@ -204,6 +278,16 @@ class FinancialDataExtractor:
 
                 for field_name, patterns in self.FIELD_PATTERNS.items():
                     if field_name in results:
+                        continue
+
+                    # Check exclusions for this field against the label
+                    exclusions = self.FIELD_EXCLUSIONS.get(field_name, [])
+                    should_skip = False
+                    for exc_pattern in exclusions:
+                        if re.search(exc_pattern, label, re.IGNORECASE):
+                            should_skip = True
+                            break
+                    if should_skip:
                         continue
 
                     for pattern in patterns:
@@ -246,6 +330,15 @@ class FinancialDataExtractor:
 
     def _derive_missing_fields(self, data: dict) -> dict:
         """Derive computable fields from existing data where possible."""
+
+        # Derive total_debt from components if not directly extracted
+        if data.get("total_debt") is None:
+            short_term = data.get("short_term_debt", 0) or 0
+            long_term = data.get("long_term_debt", 0) or 0
+            if short_term > 0 or long_term > 0:
+                data["total_debt"] = short_term + long_term
+                logger.info(f"Derived total_debt = {data['total_debt']} from short_term_debt ({short_term}) + long_term_debt ({long_term})")
+
         # Derive equity: equity = total_assets - total_liabilities
         if data.get("equity") is None and data.get("total_assets") and data.get("total_liabilities"):
             data["equity"] = data["total_assets"] - data["total_liabilities"]
@@ -281,9 +374,22 @@ class FinancialDataExtractor:
 
         if global_unit:
             multiplier = self.UNIT_MULTIPLIERS.get(global_unit, 1)
-            for field, value in data.items():
-                if value is not None and abs(value) < 1e6:
-                    # Value seems un-multiplied; apply global multiplier
-                    data[field] = value * multiplier
+            # Determine if values look like raw un-multiplied numbers.
+            # If the median absolute value is small (< 1000), they are likely raw.
+            # If values are already large (e.g., 713163 when unit is "millions"),
+            # they were already extracted with the correct magnitude.
+            numeric_values = [abs(v) for v in data.values() if isinstance(v, (int, float)) and v != 0]
+            if numeric_values:
+                numeric_values.sort()
+                median_val = numeric_values[len(numeric_values) // 2]
+                # Only apply multiplier if the median value is small enough
+                # to plausibly be an un-multiplied raw number
+                if median_val < 1000:
+                    for field, value in data.items():
+                        if isinstance(value, (int, float)) and value is not None:
+                            data[field] = value * multiplier
+                    logger.info(f"Applied global multiplier {multiplier} (median value was {median_val})")
+                else:
+                    logger.info(f"Skipped global multiplier — values appear already scaled (median={median_val})")
 
         return data

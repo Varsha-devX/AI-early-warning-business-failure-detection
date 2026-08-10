@@ -77,8 +77,15 @@ class RatioCalculator:
 
         ratios["debt_to_equity"] = self._safe_divide(total_debt, equity)
 
+        # Debt Ratio = Total Debt / Total Assets
+        # Fallback to Total Liabilities / Total Assets only if total_debt unavailable
+        debt_for_ratio = total_debt
+        if debt_for_ratio is None:
+            debt_for_ratio = financial_data.get("total_liabilities")
+            if debt_for_ratio is not None:
+                logger.warning("total_debt unavailable, falling back to total_liabilities for debt_ratio")
         ratios["debt_ratio"] = self._safe_divide(
-            financial_data.get("total_liabilities"),
+            debt_for_ratio,
             financial_data.get("total_assets"),
         )
 
