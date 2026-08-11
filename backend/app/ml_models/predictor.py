@@ -39,6 +39,7 @@ class DistressPredictor:
         self.model = None
         self.scaler = None
         self.feature_columns = FEATURE_COLUMNS
+        self.feature_medians = {}
         self._load_model()
 
     def _load_model(self) -> None:
@@ -56,6 +57,11 @@ class DistressPredictor:
             if os.path.exists(feature_names_path):
                 self.feature_columns = joblib.load(feature_names_path)
 
+            # Load feature medians if available
+            medians_path = os.path.join(self.model_dir, "feature_medians.joblib")
+            if os.path.exists(medians_path):
+                self.feature_medians = joblib.load(medians_path)
+
             logger.info("Model and scaler loaded successfully")
         else:
             logger.warning("Trained model not found. Training a new model...")
@@ -63,6 +69,10 @@ class DistressPredictor:
             logger.info(f"Model trained with metrics: {metrics}")
             self.model = joblib.load(model_path)
             self.scaler = joblib.load(scaler_path)
+            
+            medians_path = os.path.join(self.model_dir, "feature_medians.joblib")
+            if os.path.exists(medians_path):
+                self.feature_medians = joblib.load(medians_path)
 
     def predict(self, ratios: dict) -> dict:
         """
@@ -86,12 +96,14 @@ class DistressPredictor:
             value = ratios.get(col)
             if value is None:
                 # Map ratio calculator output names to training feature names
-                alt_mappings = {
-                    "working_capital_ratio": self._compute_working_capital_ratio(ratios),
-                }
-                value = alt_mappings.get(col, 0.0)
+                if col == "working_capital_ratio":
+                    value = self._compute_working_capital_ratio(ratios)
 
-            feature_values.append(float(value) if value is not None else 0.0)
+                # Fallback to training median if still None
+                if value is None or (isinstance(value, (float, int)) and np.isnan(value)):
+                    value = self.feature_medians.get(col, 0.0)
+
+            feature_values.append(float(value))
             features_used[col] = feature_values[-1]
 
         # Scale features
@@ -132,14 +144,14 @@ class DistressPredictor:
                 return level
         return "Critical"
 
-    def _compute_working_capital_ratio(self, ratios: dict) -> float:
+    def _compute_working_capital_ratio(self, ratios: dict) -> Optional[float]:
         """Compute working capital ratio from available data."""
-        wc = ratios.get("working_capital")
-        total_assets = ratios.get("total_assets")
-        if wc is not None and total_assets and total_assets != 0:
-            return wc / total_assets
-        # Fallback: derive from current ratio
+        wc_ratio = ratios.get("working_capital_ratio")
+        if wc_ratio is not None:
+            return wc_ratio
+        
+        # Fallback: derive from current ratio if possible
         cr = ratios.get("current_ratio")
         if cr is not None:
             return (cr - 1) / (cr + 1) if cr > 0 else -0.5
-        return 0.0
+        return None

@@ -91,6 +91,8 @@ class EventDetector:
         "Debt Default": {
             "patterns": [
                 (r"(?:debt|loan|bond)\s+(?:default|miss(?:ed)?\s+payment|non[\s\-]?payment)", "Critical", 0.95),
+                (r"default(?:ed)?\s+(?:on\s+)?(?:its\s+)?(?:debt|loan|bond|obligation)s?", "Critical", 0.95),
+                (r"miss(?:ed)?\s+(?:its\s+)?payment\s+(?:on\s+)?(?:debt|loan|bond)s?", "Critical", 0.95),
                 (r"(?:failed|unable)\s+to\s+(?:repay|service|meet)\s+(?:debt|loan|obligation)", "Critical", 0.95),
                 (r"(?:covenant|payment)\s+(?:breach|violation|default)", "Critical", 0.9),
                 (r"(?:bankruptcy|insolvency)\s+(?:filing|petition|proceedings?)", "Critical", 0.98),
@@ -126,33 +128,37 @@ class EventDetector:
         detected_events = []
         seen_types = set()
 
+        severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
+
         for event_type, config in self.EVENT_PATTERNS.items():
+            best_match = None
+            best_severity_rank = 99
+            
             for pattern, severity, base_confidence in config["patterns"]:
                 matches = list(re.finditer(pattern, text_lower, re.IGNORECASE))
                 if matches:
-                    # Avoid duplicate event types — keep highest confidence
-                    if event_type in seen_types:
-                        continue
-                    seen_types.add(event_type)
+                    rank = severity_order.get(severity, 4)
+                    if rank < best_severity_rank:
+                        best_severity_rank = rank
+                        
+                        match = matches[0]
+                        start = max(0, match.start() - 50)
+                        end = min(len(text), match.end() + 100)
+                        source_text = text[start:end].strip()
 
-                    # Extract context around the match
-                    match = matches[0]
-                    start = max(0, match.start() - 50)
-                    end = min(len(text), match.end() + 100)
-                    source_text = text[start:end].strip()
-
-                    detected_events.append({
-                        "event_type": event_type,
-                        "severity": severity,
-                        "confidence": base_confidence,
-                        "description": f"{event_type} detected in business news",
-                        "source_text": source_text,
-                        "category": config["category"],
-                        "detected_date": datetime.utcnow().isoformat(),
-                    })
-
-                    logger.info(f"Detected: {event_type} (severity={severity}, confidence={base_confidence})")
-                    break  # One match per event type is enough
+                        best_match = {
+                            "event_type": event_type,
+                            "severity": severity,
+                            "confidence": base_confidence,
+                            "description": f"{event_type} detected in business news",
+                            "source_text": source_text,
+                            "category": config["category"],
+                            "detected_date": datetime.utcnow().isoformat(),
+                        }
+            
+            if best_match:
+                detected_events.append(best_match)
+                logger.info(f"Detected: {best_match['event_type']} (severity={best_match['severity']}, confidence={best_match['confidence']})")
 
         # Sort by severity (Critical > High > Medium > Low)
         severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}

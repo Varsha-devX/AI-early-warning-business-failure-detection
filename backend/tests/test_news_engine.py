@@ -138,5 +138,5 @@ class TestHealthScorer:
         scorer = HealthScorer()
 
         result = scorer.calculate()
-        assert result["health_score"] == 50
+        assert result["health_score"] is None
         assert result["confidence_score"] == 0

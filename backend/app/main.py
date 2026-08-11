@@ -14,9 +14,8 @@ Sets up the FastAPI application with:
 import sys
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app.config import get_settings
@@ -115,6 +114,11 @@ def create_app() -> FastAPI:
             "status": "running",
             "docs": "/docs",
         }
+
+    # Favicon endpoint
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon():
+        return Response(status_code=204)
 
     return app
 

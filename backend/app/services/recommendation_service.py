@@ -169,14 +169,18 @@ Return ONLY valid JSON, no markdown formatting.
     def _parse_response(self, text: str) -> dict:
         """Parse Gemini response into structured recommendations."""
         try:
-            # Strip markdown code fences if present
+            import re
             cleaned = text.strip()
-            if cleaned.startswith("```"):
-                lines = cleaned.split("\n")
-                lines = lines[1:]  # Remove first ``` line
-                if lines and lines[-1].strip() == "```":
-                    lines = lines[:-1]
-                cleaned = "\n".join(lines)
+            # Clean markdown fences or surrounding text
+            match = re.search(r'```(?:json)?\s*(.*?)\s*```', cleaned, re.DOTALL | re.IGNORECASE)
+            if match:
+                cleaned = match.group(1)
+            else:
+                # Fallback to finding outermost brackets
+                start = cleaned.find('{')
+                end = cleaned.rfind('}')
+                if start != -1 and end != -1:
+                    cleaned = cleaned[start:end+1]
 
             data = json.loads(cleaned)
             logger.info("Successfully parsed Gemini recommendations")

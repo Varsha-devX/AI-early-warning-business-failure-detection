@@ -119,8 +119,14 @@ class RatioCalculator:
         # --- Working Capital ---
         if current_assets is not None and financial_data.get("current_liabilities") is not None:
             ratios["working_capital"] = current_assets - financial_data["current_liabilities"]
+            total_assets = financial_data.get("total_assets")
+            if total_assets and total_assets != 0:
+                ratios["working_capital_ratio"] = self._safe_divide(ratios["working_capital"], total_assets)
+            else:
+                ratios["working_capital_ratio"] = None
         else:
             ratios["working_capital"] = None
+            ratios["working_capital_ratio"] = None
 
         # --- Health Assessment ---
         warning_flags = self._generate_warnings(ratios)

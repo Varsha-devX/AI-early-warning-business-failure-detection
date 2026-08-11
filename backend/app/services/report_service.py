@@ -149,13 +149,17 @@ Return ONLY valid JSON.
         response = self.model.generate_content(prompt)
         text = response.text.strip()
 
-        # Clean markdown fences
-        if text.startswith("```"):
-            lines = text.split("\n")
-            lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            text = "\n".join(lines)
+        import re
+        # Clean markdown fences or surrounding text
+        match = re.search(r'```(?:json)?\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
+        if match:
+            text = match.group(1)
+        else:
+            # Fallback to finding outermost brackets
+            start = text.find('{')
+            end = text.rfind('}')
+            if start != -1 and end != -1:
+                text = text[start:end+1]
 
         return json.loads(text)
 
@@ -365,11 +369,12 @@ Return ONLY valid JSON.
                 if content:
                     elements.append(Paragraph(title, heading_style))
                     # Handle multiline content with better bullet alignment
+                    import xml.sax.saxutils
                     for para in str(content).split("\n"):
                         para = para.strip()
                         if not para:
                             continue
-                        para = para.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        para = xml.sax.saxutils.escape(para)
                         if para.startswith("- "):
                             elements.append(Paragraph(para[2:], bullet_style, bulletText="•"))
                         else:

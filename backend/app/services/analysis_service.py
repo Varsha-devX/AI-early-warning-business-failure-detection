@@ -50,11 +50,18 @@ class AnalysisService:
         """
         # Create or get company
         company = self.db.query(Company).filter(Company.name == company_name).first()
+        
+        # Security check: if company exists but belongs to someone else
+        current_user = getattr(self, 'current_user_id', None)
+        if company and current_user and company.user_id and company.user_id != current_user:
+             raise ValueError(f"A company with this name already exists and belongs to another user.")
+
         if not company:
             company = Company(
                 id=str(uuid.uuid4()),
                 name=company_name,
                 industry=industry,
+                user_id=current_user
             )
             self.db.add(company)
             self.db.flush()
@@ -137,6 +144,10 @@ class AnalysisService:
 
         company = self.db.query(Company).filter(Company.id == company_id).first()
         if not company:
+            raise ValueError(f"Company not found: {company_id}")
+        
+        current_user = getattr(self, 'current_user_id', None)
+        if current_user and company.user_id and company.user_id != current_user:
             raise ValueError(f"Company not found: {company_id}")
 
         financial_doc = self.db.query(UploadedDocument).filter(
@@ -342,6 +353,10 @@ class AnalysisService:
         """
         company = self.db.query(Company).filter(Company.id == company_id).first()
         if not company:
+            raise ValueError(f"Company not found: {company_id}")
+            
+        current_user = getattr(self, 'current_user_id', None)
+        if current_user and company.user_id and company.user_id != current_user:
             raise ValueError(f"Company not found: {company_id}")
 
         # Get latest of each result type

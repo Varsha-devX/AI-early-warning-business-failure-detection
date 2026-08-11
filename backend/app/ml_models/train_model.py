@@ -121,7 +121,8 @@ def train_model(
     y = dataset[TARGET_COLUMN].copy()
 
     # Handle any missing values
-    X = X.fillna(X.median())
+    feature_medians = X.median()
+    X = X.fillna(feature_medians)
 
     # Train/test split (stratified)
     X_train, X_test, y_train, y_test = train_test_split(
@@ -177,9 +178,11 @@ def train_model(
     joblib.dump(model, model_path)
     joblib.dump(scaler, scaler_path)
 
-    # Save feature names
+    # Save feature names and medians
     feature_names_path = os.path.join(output_dir, "feature_names.joblib")
+    medians_path = os.path.join(output_dir, "feature_medians.joblib")
     joblib.dump(FEATURE_COLUMNS, feature_names_path)
+    joblib.dump(feature_medians, medians_path)
 
     logger.info(f"Model saved to {model_path}")
     logger.info(f"Scaler saved to {scaler_path}")

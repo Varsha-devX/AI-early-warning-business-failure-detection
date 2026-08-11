@@ -119,7 +119,7 @@ class SentimentAnalyzer:
         """Analyze sentiment of a single text segment."""
         if self._finbert_available and self.pipeline:
             try:
-                result = self.pipeline(text[:512])  # FinBERT max length
+                result = self.pipeline(text)  # Let HF handle token-level truncation
                 if result and isinstance(result, list):
                     # result is a list of lists for top_k=None
                     scores = result[0] if isinstance(result[0], list) else result

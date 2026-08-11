@@ -117,7 +117,7 @@ class HealthScorer:
                 })
 
         # --- Business Events Component ---
-        if business_events:
+        if business_events is not None:
             event_score = 100
             for event in business_events:
                 severity = event.get("severity", "Low")
@@ -137,7 +137,7 @@ class HealthScorer:
         if not active_weights:
             logger.warning("No component scores available")
             return {
-                "health_score": 50.0,
+                "health_score": None,
                 "risk_level": "Unknown",
                 "warning_signals": [],
                 "confidence_score": 0.0,
@@ -179,8 +179,10 @@ class HealthScorer:
             },
         }
 
-    def _get_risk_level(self, health_score: float) -> str:
+    def _get_risk_level(self, health_score: float | None) -> str:
         """Map health score to risk level (inverse relationship)."""
+        if health_score is None:
+            return "Unknown"
         if health_score >= 75:
             return "Low"
         elif health_score >= 50:

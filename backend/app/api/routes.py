@@ -7,10 +7,13 @@ All API endpoints for the EarlySight AI platform.
 import os
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Header
 from fastapi.responses import FileResponse
 from loguru import logger
 from sqlalchemy.orm import Session
+
+from app.database.models import User
+
 
 from app.database.connection import get_db
 from app.database.schemas import (
@@ -24,8 +27,18 @@ from app.services.analysis_service import AnalysisService
 router = APIRouter(prefix="/api", tags=["Analysis"])
 
 
-def _get_service(db: Session = Depends(get_db)) -> AnalysisService:
-    return AnalysisService(db=db)
+def get_current_user_id(x_user_id: str = Header(default="demo_user", description="User ID"), db: Session = Depends(get_db)) -> str:
+    user = db.query(User).filter(User.id == x_user_id).first()
+    if not user:
+        user = User(id=x_user_id, username=f"user_{x_user_id[:8]}", email=f"{x_user_id}@example.com")
+        db.add(user)
+        db.commit()
+    return x_user_id
+
+def _get_service(db: Session = Depends(get_db), user_id: str = Depends(get_current_user_id)) -> AnalysisService:
+    service = AnalysisService(db=db)
+    service.current_user_id = user_id
+    return service
 
 
 # ============================================================
@@ -71,7 +84,7 @@ async def upload_financials(
         )
     except Exception as e:
         logger.error(f"Upload failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error during upload")
 
 
 @router.post(
@@ -107,7 +120,7 @@ async def upload_news(
         )
     except Exception as e:
         logger.error(f"News upload failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error during news upload")
 
 
 # ============================================================
@@ -137,7 +150,7 @@ async def run_analysis(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error during analysis")
 
 
 @router.post(
@@ -192,7 +205,7 @@ async def upload_and_analyze(
 
     except Exception as e:
         logger.error(f"Upload and analyze failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error during upload and analyze")
 
 
 # ============================================================
@@ -215,7 +228,7 @@ async def get_dashboard(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Dashboard fetch failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal server error fetching dashboard data")
 
 
 @router.get(
@@ -226,11 +239,12 @@ async def get_dashboard(
 async def get_company(
     company_id: str,
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
 ):
     """Return company details."""
     from app.database.models import Company
     company = db.query(Company).filter(Company.id == company_id).first()
-    if not company:
+    if not company or (company.user_id and company.user_id != user_id):
         raise HTTPException(status_code=404, detail="Company not found")
 
     return {
@@ -247,10 +261,10 @@ async def get_company(
     summary="List all companies",
     description="Get list of all analyzed companies.",
 )
-async def list_companies(db: Session = Depends(get_db)):
+async def list_companies(db: Session = Depends(get_db), user_id: str = Depends(get_current_user_id)):
     """List all companies with their latest analysis status."""
     from app.database.models import Company
-    companies = db.query(Company).order_by(Company.created_at.desc()).all()
+    companies = db.query(Company).filter(Company.user_id == user_id).order_by(Company.created_at.desc()).all()
     return [
         {
             "id": c.id,
@@ -274,9 +288,14 @@ async def list_companies(db: Session = Depends(get_db)):
 async def download_report(
     company_id: str,
     db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
 ):
     """Download the executive report PDF for a company."""
-    from app.database.models import ExecutiveReport
+    from app.database.models import ExecutiveReport, Company
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company or (company.user_id and company.user_id != user_id):
+         raise HTTPException(status_code=404, detail="Company not found")
+
     report = db.query(ExecutiveReport).filter(
         ExecutiveReport.company_id == company_id
     ).order_by(ExecutiveReport.generated_at.desc()).first()
