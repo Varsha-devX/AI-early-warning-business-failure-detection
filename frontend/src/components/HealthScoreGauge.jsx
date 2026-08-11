@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 
-export default function HealthScoreGauge({ score = 50 }) {
+export default function HealthScoreGauge({ score }) {
   const canvasRef = useRef(null);
+  
+  const isAvailable = score !== null && score !== undefined;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -25,11 +27,12 @@ export default function HealthScoreGauge({ score = 50 }) {
 
     // Animate
     let currentScore = 0;
-    const targetScore = Math.max(0, Math.min(100, score));
-    const duration = 1500;
+    const targetScore = isAvailable ? Math.max(0, Math.min(100, score)) : 0;
+    const duration = isAvailable ? 1500 : 0;
     const startTime = performance.now();
 
     const getColor = (s) => {
+      if (!isAvailable) return 'rgba(255,255,255,0.1)';
       if (s >= 75) return '#10b981';
       if (s >= 50) return '#f59e0b';
       if (s >= 25) return '#ef4444';
@@ -38,7 +41,7 @@ export default function HealthScoreGauge({ score = 50 }) {
 
     const draw = (timestamp) => {
       const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / duration, 1);
+      const progress = duration > 0 ? Math.min(elapsed / duration, 1) : 1;
       const eased = 1 - Math.pow(1 - progress, 3); // Ease-out cubic
       currentScore = eased * targetScore;
 
@@ -53,7 +56,7 @@ export default function HealthScoreGauge({ score = 50 }) {
       ctx.stroke();
 
       // Value arc
-      const scoreAngle = startAngle + (endAngle - startAngle) * (currentScore / 100);
+      const scoreAngle = startAngle + (endAngle - startAngle) * (isAvailable ? (currentScore / 100) : 1);
       const color = getColor(currentScore);
 
       ctx.beginPath();
@@ -61,8 +64,8 @@ export default function HealthScoreGauge({ score = 50 }) {
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.lineCap = 'round';
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 15;
+      ctx.shadowColor = isAvailable ? color : 'transparent';
+      ctx.shadowBlur = isAvailable ? 15 : 0;
       ctx.stroke();
       ctx.shadowBlur = 0;
 
@@ -71,7 +74,7 @@ export default function HealthScoreGauge({ score = 50 }) {
       ctx.font = 'bold 36px Outfit, Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(Math.round(currentScore), centerX, centerY - 5);
+      ctx.fillText(isAvailable ? Math.round(currentScore) : '--', centerX, centerY - 5);
 
       ctx.fillStyle = 'rgba(255,255,255,0.4)';
       ctx.font = '12px Inter, sans-serif';
@@ -81,9 +84,10 @@ export default function HealthScoreGauge({ score = 50 }) {
     };
 
     requestAnimationFrame(draw);
-  }, [score]);
+  }, [score, isAvailable]);
 
   const getLabel = (s) => {
+    if (!isAvailable) return { text: 'Data Unavailable', cls: 'text-gray-400' };
     if (s >= 75) return { text: 'Healthy', cls: 'text-emerald-400' };
     if (s >= 50) return { text: 'Fair', cls: 'text-amber-400' };
     if (s >= 25) return { text: 'At Risk', cls: 'text-red-400' };

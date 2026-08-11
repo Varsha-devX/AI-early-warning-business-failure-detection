@@ -8,13 +8,33 @@ const client = axios.create({
   headers: { 'Accept': 'application/json' },
 });
 
+let userId = localStorage.getItem('earlysight_user_id');
+if (!userId) {
+  userId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+  localStorage.setItem('earlysight_user_id', userId);
+}
+
 // Response interceptor for error handling
 client.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.detail || error.message || 'An error occurred';
+    let message = error.response?.data?.detail || error.message || 'An error occurred';
+
+    if (!error.response) {
+      message =
+        'Network Error: could not connect to the backend. Ensure the API server is running on http://localhost:8000.';
+    }
+
     console.error('API Error:', message);
-    return Promise.reject(error);
+    return Promise.reject({ ...error, message });
+  }
+);
+
+// Request interceptor to add user id
+client.interceptors.request.use(
+  (config) => {
+    config.headers['X-User-ID'] = userId;
+    return config;
   }
 );
 

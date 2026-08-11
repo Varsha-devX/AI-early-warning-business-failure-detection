@@ -87,9 +87,11 @@ export default function DashboardPage() {
           news_analysis, business_events, recommendations, executive_report } = data;
 
   // Extract health score from executive report or risk prediction
-  const healthScore = executive_report?.business_health_score ?? 50;
-  const riskLevel = executive_report?.overall_risk_level ?? risk_prediction?.risk_level ?? 'Unknown';
-  const confidenceScore = executive_report?.confidence_score ?? risk_prediction?.confidence_score ?? 0;
+  const healthScore = executive_report?.business_health_score;
+  const riskLevel = executive_report?.overall_risk_level ?? risk_prediction?.risk_level;
+  const riskScore = risk_prediction?.risk_score;
+  const distressProbability = risk_prediction?.distress_probability;
+  const confidenceScore = executive_report?.confidence_score ?? risk_prediction?.confidence_score;
 
   // Warning signals from ratios
   const warningSignals = financial_ratios?.warning_flags || [];
@@ -136,9 +138,9 @@ export default function DashboardPage() {
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
             <RiskGauge
-              riskScore={risk_prediction?.risk_score ?? 0}
-              riskLevel={risk_prediction?.risk_level ?? 'Unknown'}
-              distressProbability={risk_prediction?.distress_probability ?? 0}
+              riskScore={riskScore}
+              riskLevel={riskLevel}
+              distressProbability={distressProbability}
               confidence={confidenceScore}
             />
           </motion.div>
