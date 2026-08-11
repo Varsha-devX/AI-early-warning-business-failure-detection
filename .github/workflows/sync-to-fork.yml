@@ -1,0 +1,25 @@
+# Automatically sync changes to friend's forked repo
+# Triggers on every push to main branch
+
+name: Sync to Friend's Fork
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync-to-fork:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push to friend's fork
+        run: |
+          git remote add friend https://x-access-token:${{ secrets.FRIEND_FORK_PAT }}@github.com/Varsha-G-E/AI-early-warning-business-failure-detection.git
+          git push friend main --force
+        env:
+          FRIEND_FORK_PAT: ${{ secrets.FRIEND_FORK_PAT }}
