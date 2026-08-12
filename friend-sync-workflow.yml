@@ -1,0 +1,35 @@
+# ============================================================
+#  INSTRUCTIONS FOR YOUR FRIEND (Varsha-G-E)
+# ============================================================
+#
+#  Your friend should add this file to their forked repo at:
+#    .github/workflows/sync-from-upstream.yml
+#
+#  This will automatically pull your latest changes every 6 hours
+#  OR they can trigger it manually from GitHub Actions tab.
+# ============================================================
+
+name: Sync Fork from Upstream
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'   # Runs every 6 hours
+  workflow_dispatch:          # Allows manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync from upstream
+        run: |
+          git remote add upstream https://github.com/Varsha-devX/AI-early-warning-business-failure-detection.git
+          git fetch upstream
+          git checkout main
+          git merge upstream/main --no-edit
+          git push origin main
