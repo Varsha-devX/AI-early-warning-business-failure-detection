@@ -70,14 +70,14 @@ export default function UploadPage() {
 
     const progressSteps = [
       { pct: 10, msg: 'Uploading documents...' },
-      { pct: 20, msg: 'Extracting financial data...' },
+      { pct: 20, msg: 'Extracting financial data (can take 5-10 mins for large PDFs)...' },
       { pct: 35, msg: 'Calculating financial ratios...' },
       { pct: 50, msg: 'Running AI distress prediction...' },
       { pct: 60, msg: 'Generating SHAP explanations...' },
       { pct: 70, msg: 'Analyzing news sentiment...' },
       { pct: 80, msg: 'Computing Business Health Score...' },
       { pct: 90, msg: 'Generating recommendations...' },
-      { pct: 95, msg: 'Creating executive report...' },
+      { pct: 95, msg: 'Finalizing... (Please do not close this page)' },
     ];
 
     // Simulate progress while API call runs
@@ -88,7 +88,7 @@ export default function UploadPage() {
         setStatusMessage(progressSteps[stepIndex].msg);
         stepIndex++;
       }
-    }, 3000);
+    }, 15000);
 
     try {
       const formData = new FormData();

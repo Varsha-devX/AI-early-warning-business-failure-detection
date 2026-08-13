@@ -109,60 +109,85 @@ class EventDetector:
         },
     }
 
-    def detect(self, text: str) -> list[dict]:
+    def detect(self, text_or_articles: str | list[str]) -> list[dict]:
         """
-        Detect business events from news text.
+        Detect business events from news text or articles.
 
         Args:
-            text: Raw news text to analyze.
+            text_or_articles: Raw news text or list of articles to analyze.
 
         Returns:
             List of detected event dictionaries with type, severity,
-            confidence, description, source_text, and category.
+            confidence, description, source_text, category, and related_articles.
         """
-        if not text or not text.strip():
+        if not text_or_articles:
             return []
 
-        logger.info("Detecting business events from news text")
-        text_lower = text.lower()
-        detected_events = []
-        seen_types = set()
+        if isinstance(text_or_articles, str):
+            if not text_or_articles.strip():
+                return []
+            articles = [text_or_articles]
+        else:
+            articles = text_or_articles
 
+        logger.info(f"Detecting business events from {len(articles)} articles")
+        
         severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
+        grouped_events = {}
 
-        for event_type, config in self.EVENT_PATTERNS.items():
-            best_match = None
-            best_severity_rank = 99
+        for article in articles:
+            text_lower = article.lower()
             
-            for pattern, severity, base_confidence in config["patterns"]:
-                matches = list(re.finditer(pattern, text_lower, re.IGNORECASE))
-                if matches:
-                    rank = severity_order.get(severity, 4)
-                    if rank < best_severity_rank:
-                        best_severity_rank = rank
+            for event_type, config in self.EVENT_PATTERNS.items():
+                best_match = None
+                best_severity_rank = 99
+                
+                for pattern, severity, base_confidence in config["patterns"]:
+                    matches = list(re.finditer(pattern, text_lower, re.IGNORECASE))
+                    if matches:
+                        rank = severity_order.get(severity, 4)
+                        if rank < best_severity_rank:
+                            best_severity_rank = rank
+                            
+                            match = matches[0]
+                            start = max(0, match.start() - 50)
+                            end = min(len(article), match.end() + 100)
+                            source_text = article[start:end].strip()
+
+                            best_match = {
+                                "event_type": event_type,
+                                "severity": severity,
+                                "confidence": base_confidence,
+                                "description": f"{event_type} detected in business news",
+                                "source_text": source_text,
+                                "category": config["category"],
+                                "detected_date": datetime.utcnow().isoformat(),
+                                "related_articles": 1
+                            }
+                
+                if best_match:
+                    if event_type in grouped_events:
+                        existing = grouped_events[event_type]
+                        existing["related_articles"] += 1
                         
-                        match = matches[0]
-                        start = max(0, match.start() - 50)
-                        end = min(len(text), match.end() + 100)
-                        source_text = text[start:end].strip()
+                        # Keep highest severity
+                        existing_rank = severity_order.get(existing["severity"], 4)
+                        new_rank = severity_order.get(best_match["severity"], 4)
+                        if new_rank < existing_rank:
+                            existing["severity"] = best_match["severity"]
+                            existing["source_text"] = best_match["source_text"]
+                            existing["confidence"] = best_match["confidence"]
+                        elif new_rank == existing_rank and best_match["confidence"] > existing["confidence"]:
+                            existing["confidence"] = best_match["confidence"]
+                            existing["source_text"] = best_match["source_text"]
+                    else:
+                        grouped_events[event_type] = best_match
+                        logger.info(f"Detected: {best_match['event_type']} (severity={best_match['severity']})")
 
-                        best_match = {
-                            "event_type": event_type,
-                            "severity": severity,
-                            "confidence": base_confidence,
-                            "description": f"{event_type} detected in business news",
-                            "source_text": source_text,
-                            "category": config["category"],
-                            "detected_date": datetime.utcnow().isoformat(),
-                        }
-            
-            if best_match:
-                detected_events.append(best_match)
-                logger.info(f"Detected: {best_match['event_type']} (severity={best_match['severity']}, confidence={best_match['confidence']})")
+        detected_events = list(grouped_events.values())
 
         # Sort by severity (Critical > High > Medium > Low)
-        severity_order = {"Critical": 0, "High": 1, "Medium": 2, "Low": 3}
         detected_events.sort(key=lambda e: severity_order.get(e["severity"], 4))
 
-        logger.info(f"Event detection complete: {len(detected_events)} events found")
+        logger.info(f"Event detection complete: {len(detected_events)} unique events found")
         return detected_events

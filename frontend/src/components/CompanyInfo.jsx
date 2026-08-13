@@ -16,11 +16,11 @@ export default function CompanyInfo({ company }) {
               {company.industry}
             </span>
           )}
-          {company.created_at && (
+          {(company.updated_at || company.created_at) && (
             <span className="text-xs text-gray-500 flex items-center gap-1">
               <HiOutlineClock className="w-3 h-3" />
-              Analyzed: {new Date(company.created_at).toLocaleDateString('en-IN', {
-                year: 'numeric', month: 'short', day: 'numeric'
+              Analyzed: {new Date().toLocaleDateString('en-IN', {
+                year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Kolkata'
               })}
             </span>
           )}

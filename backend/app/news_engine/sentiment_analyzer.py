@@ -43,27 +43,35 @@ class SentimentAnalyzer:
             logger.warning(f"FinBERT loading failed: {e}. Using keyword-based fallback.")
             self._finbert_available = False
 
-    def analyze(self, text: str) -> dict:
+    def analyze(self, text: str | list[str]) -> dict:
         """
         Analyze overall sentiment and per-article sentiments from news text.
 
         Args:
-            text: Raw news text (may contain multiple articles/paragraphs).
+            text: Raw news text or a list of already split articles.
 
         Returns:
             Dictionary with overall_sentiment, sentiment_score,
             per-class ratios, and individual article analyses.
         """
-        if not text or not text.strip():
+        if not text:
             return self._empty_result()
 
         logger.info("Analyzing news sentiment")
 
-        # Split text into individual articles/paragraphs
-        articles = self._split_into_articles(text)
+        # Split text into individual articles/paragraphs if string
+        if isinstance(text, str):
+            if not text.strip():
+                return self._empty_result()
+            articles = self._split_into_articles(text)
+        else:
+            articles = text
 
         if not articles:
             return self._empty_result()
+
+        # Deduplicate articles
+        articles = self._deduplicate_articles(articles)
 
         # Analyze each article
         article_results = []
@@ -194,6 +202,20 @@ class SentimentAnalyzer:
                 articles.append(" ".join(current))
 
         return articles if articles else [text]
+
+    def _deduplicate_articles(self, articles: list[str]) -> list[str]:
+        """Remove exact or highly similar duplicate articles."""
+        unique_articles = []
+        seen = set()
+        for art in articles:
+            # Normalize for deduplication (lowercase, remove extra whitespace)
+            norm = " ".join(art.lower().split())
+            if not norm:
+                continue
+            if norm not in seen:
+                seen.add(norm)
+                unique_articles.append(art)
+        return unique_articles
 
     def _empty_result(self) -> dict:
         """Return empty sentiment result."""

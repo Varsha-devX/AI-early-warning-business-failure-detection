@@ -200,6 +200,7 @@ class BusinessEvent(Base):
     source_text = Column(Text, nullable=True)
     detected_date = Column(DateTime, default=datetime.utcnow)
     confidence = Column(Float, nullable=True)
+    related_articles = Column(Integer, nullable=True, default=1)
 
     company = relationship("Company", back_populates="business_events")
 

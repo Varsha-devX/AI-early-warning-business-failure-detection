@@ -64,7 +64,7 @@ export default function ExecutiveReport({ report, onDownload }) {
           <div>
             <span className="text-gray-500">Generated: </span>
             <span className="text-gray-400">
-              {new Date(report.generated_at).toLocaleString('en-IN')}
+              {new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}
             </span>
           </div>
         )}

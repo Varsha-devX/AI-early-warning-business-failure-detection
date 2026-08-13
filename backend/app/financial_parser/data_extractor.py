@@ -36,17 +36,20 @@ class FinancialDataExtractor:
     # ORDER MATTERS: more specific patterns should come first within each field
     FIELD_PATTERNS = {
         "revenue": [
-            r"(?:total\s+)?(?:revenue|turnover|net\s+sales|total\s+sales|gross\s+sales|income\s+from\s+operations)",
+            r"(?:total\s+)?(?:revenue|income|turnover|net\s+sales|total\s+sales|gross\s+sales)(?:\s+from\s+operations)?",
         ],
         "net_profit": [
-            r"net\s+(?:profit|income|earnings)\s*(?:after\s+tax|for\s+the\s+(?:year|period)|attributable)?",
-            r"profit\s+after\s+tax",
+            r"profit\s*/\s*[l\(]?loss[r\)]?\s+after\s+tax(?:\s+for\s+the\s+[po]eriod\s*/\s*[vy]ear)?(?:\s*\([ivxlcdm-]+\))?",
+            r"net\s+profit\s*/\s*\(?loss\)?\s+for\s+the\s+year(?:\s*\([ivxlcdm-]+\))?",
+            r"profit\s*\/?\s*\(?loss\)?\s+for\s+the\s+year(?:\s*\([ivxlcdm-]+\))?",
+            r"net\s+(?:profit|income|earnings|loss)\s*(?:after\s+tax|for\s+the\s+(?:year|period)|attributable)?",
+            r"profit\s*(?:/|and|\()?loss\)?\s+after\s+tax",
             r"PAT\b",
-            r"net\s+(?:profit|income)\s+(?:attributable\s+to)",
-            r"consolidated\s+net\s+(?:income|profit)",
+            r"net\s+(?:profit|income|loss)\s*(?:\(loss\)\s+)?(?:attributable\s+to)",
+            r"consolidated\s+net\s+(?:income|profit|loss)",
         ],
         "operating_profit": [
-            r"operating\s+(?:profit|income|earnings)",
+            r"operating\s+(?:profit|income|earnings|loss)(?:\s*\(loss\))?",
             r"EBITDA\b",
             r"EBIT\b",
             r"profit\s+from\s+operations",
@@ -87,8 +90,11 @@ class FinancialDataExtractor:
             r"cash\s+flows?\s+from\s+operating\s+activities",
         ],
         "equity": [
-            r"(?:total\s+)?(?:shareholders?['\u2019]?\s+|stockholders?['\u2019]?\s+)?equity",
-            r"(?:total\s+)?net\s+worth",
+            r"total\s+equity",
+            r"shareholders?\s*(?:equity|funds?)",
+            r"net\s*worth",
+            r"total\s+shareholders?\s*equity",
+            r"equity\s+share\s+capital",
         ],
         "inventory": [
             r"(?:total\s+)?inventor(?:y|ies)",
@@ -97,6 +103,13 @@ class FinancialDataExtractor:
 
     # Negative-match patterns: if a line matches these, SKIP it for the given field
     FIELD_EXCLUSIONS = {
+        "revenue": [
+            r"deferred",
+            r"unearned",
+            r"net\s+income",
+            r"other\s+income",
+            r"comprehensive",
+        ],
         "net_profit": [
             r"comprehensive\s+(?:income|loss)",
             r"other\s+(?:income|expense)",
@@ -111,6 +124,11 @@ class FinancialDataExtractor:
         "operating_profit": [
             r"non[- ]operating",
             r"other\s+(?:income|expense)",
+        ],
+        "total_debt": [
+            r"to\s+total\s+assets",
+            r"ratio",
+            r"and\s+equity",
         ],
         "total_liabilities": [
             r"liabilities\s+(?:and|&)\s+(?:equity|stockholders|shareholders)",
@@ -190,61 +208,67 @@ class FinancialDataExtractor:
         exclusions = self.FIELD_EXCLUSIONS.get(field_name, [])
 
         for kw_pattern in keyword_patterns:
-            # Build a pattern: keyword … number (possibly with unit)
             full_pattern = (
-                rf'(?:^|[\n\r])[\s]*'
+                rf'(?:^|[\n\r])[\s]*(?:(?:[a-zA-Z0-9ivxlcdm]+[\.\)]?|[\(][a-zA-Z0-9ivxlcdm]+[\)])[\s]+)?'
                 rf'({kw_pattern})'
                 rf'[\s:=\-–—]*'
-                rf'(?:[₹$]\s*)?'
-                rf'([\-\−]?\s*\d[\d,]*(?:\.\d+)?)'
-                rf'\s*'
-                rf'(crores?|cr\.?|lakhs?|lacs?|millions?|mn|billions?|bn|thousands?|k)?'
+                rf'([^\n\r]*)'
             )
-            for m in re.finditer(full_pattern, text_lower, re.IGNORECASE | re.MULTILINE):
+            for m in re.finditer(full_pattern, text_lower, re.IGNORECASE):
+                keyword_match = m.group(1)
+                rest_of_line = m.group(2)
+                
                 # Get the full line containing this match for exclusion checking.
-                # Handle \r\n, \r, and \n line endings by finding nearest line boundary.
-                # Use start of group 1 (the keyword) not start of full match (which includes \n)
                 keyword_pos = m.start(1)
-                # Search backwards for any newline character
                 line_start = keyword_pos
                 while line_start > 0 and text_lower[line_start - 1] not in '\r\n':
                     line_start -= 1
-                # Search forwards from keyword for any newline character
-                line_end = keyword_pos
-                while line_end < len(text_lower) and text_lower[line_end] not in '\r\n':
-                    line_end += 1
-                matched_line = text_lower[line_start:line_end]
+                matched_line = text_lower[line_start:m.end(1) + len(rest_of_line)]
 
                 # Check exclusion patterns against the SPECIFIC matched line
                 if self._should_exclude_line(matched_line, exclusions):
                     continue
 
-                groups = m.groups()
-                raw_number = groups[1] if len(groups) > 1 else None
-                unit = groups[2].strip().rstrip('.') if len(groups) > 2 and groups[2] else None
-
-                if raw_number:
-                    value = self._parse_number(raw_number, unit)
-                    if value is not None:
+                # Extract all numbers from the rest of the line
+                number_pattern = rf'([(\-\−]?\s*(?:[₹$€£]\s*)?\d[\d,]*(?:\.\d+)?\)?)[\s]*(crores?|cr\.?|lakhs?|lacs?|millions?|mn|billions?|bn|thousands?|k)?'
+                num_matches = re.findall(number_pattern, rest_of_line, re.IGNORECASE)
+                
+                if num_matches:
+                    row_numbers = []
+                    for raw_num, unit in num_matches:
+                        val = self._parse_number(raw_num, unit)
+                        if val is not None:
+                            row_numbers.append(val)
+                            
+                    if row_numbers:
+                        if len(row_numbers) >= 2:
+                            value = row_numbers[-2]
+                        else:
+                            value = row_numbers[-1]
+                            
+                        if "loss" in keyword_match.lower() and "profit" not in keyword_match.lower() and value > 0:
+                            value = -value
                         return value
 
             # Also try inline pattern: "keyword is/was <number>"
             inline_pattern = (
-                rf'{kw_pattern}'
+                rf'({kw_pattern})'
                 rf'\s+(?:is|was|of|at|stood\s+at|amounted\s+to|reported\s+at)\s+'
-                rf'(?:[₹$]\s*)?'
-                rf'([\-\−]?\s*\d[\d,]*(?:\.\d+)?)'
+                rf'([(\-\−]?\s*(?:[₹$€£]\s*)?\d[\d,]*(?:\.\d+)?\)?)'
                 rf'\s*'
                 rf'(crores?|cr\.?|lakhs?|lacs?|millions?|mn|billions?|bn|thousands?|k)?'
             )
             inline_matches = re.findall(inline_pattern, text_lower, re.IGNORECASE)
             if inline_matches:
                 for match in inline_matches:
-                    raw_number = match[0] if match else None
-                    unit = match[1].strip().rstrip('.') if len(match) > 1 and match[1] else None
+                    kw_match_str = match[0] if match else ""
+                    raw_number = match[1] if len(match) > 1 and match[1] else None
+                    unit = match[2].strip().rstrip('.') if len(match) > 2 and match[2] else None
                     if raw_number:
                         value = self._parse_number(raw_number, unit)
                         if value is not None:
+                            if "loss" in kw_match_str.lower() and "profit" not in kw_match_str.lower() and value > 0:
+                                value = -value
                             return value
 
         return None
@@ -292,12 +316,25 @@ class FinancialDataExtractor:
 
                     for pattern in patterns:
                         if re.search(pattern, label, re.IGNORECASE):
-                            # Try to extract number from remaining columns (last column first = latest year)
-                            for cell in reversed(row[1:]):
+                            # Extract all numbers from the remaining columns
+                            row_numbers = []
+                            for cell in row[1:]:
                                 value = self._parse_number(str(cell))
                                 if value is not None:
-                                    results[field_name] = value
-                                    break
+                                    row_numbers.append(value)
+                            
+                            if row_numbers:
+                                # In Indian format (Schedule III): Particulars | Note | Current Year | Previous Year
+                                # Or: Particulars | Current Year | Previous Year
+                                # The second-to-last number is almost always the Current Year.
+                                if len(row_numbers) >= 2:
+                                    value = row_numbers[-2]
+                                else:
+                                    value = row_numbers[-1]
+                                    
+                                if "loss" in label and "profit" not in label and "income" not in label and value > 0:
+                                    value = -value
+                                results[field_name] = value
                             break
 
         return results
@@ -307,11 +344,23 @@ class FinancialDataExtractor:
         if not raw:
             return None
         try:
+            # Extract the first valid number substring from raw (handles multiline cells)
+            match = re.search(r'([(\-\−]?\s*(?:[₹$€£]\s*)?\d[\d,]*(?:\.\d+)?\)?)', raw)
+            if not match:
+                return None
+            
+            cleaned = match.group(1)
+            
             # Clean the string
-            cleaned = raw.replace(",", "").replace(" ", "")
+            cleaned = cleaned.replace(",", "").replace(" ", "")
             cleaned = cleaned.replace("−", "-").replace("–", "-")
             cleaned = cleaned.replace("₹", "").replace("$", "")
             cleaned = cleaned.strip()
+
+            if cleaned.startswith("("):
+                cleaned = "-" + cleaned[1:]
+                if cleaned.endswith(")"):
+                    cleaned = cleaned[:-1]
 
             if not cleaned or cleaned == "-":
                 return None

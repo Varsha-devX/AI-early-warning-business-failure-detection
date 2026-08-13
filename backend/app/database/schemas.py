@@ -27,6 +27,7 @@ class CompanyResponse(BaseModel):
     industry: Optional[str] = None
     description: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -152,6 +153,7 @@ class BusinessEventResponse(BaseModel):
     source_text: Optional[str] = None
     detected_date: datetime
     confidence: Optional[float] = None
+    related_articles: Optional[int] = None
 
     class Config:
         from_attributes = True

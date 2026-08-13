@@ -302,6 +302,7 @@ class AnalysisService:
                 severity=event.get("severity"),
                 source_text=event.get("source_text"),
                 confidence=event.get("confidence"),
+                related_articles=event.get("related_articles", 1),
             )
             self.db.add(be)
 
@@ -376,9 +377,11 @@ class AnalysisService:
             NewsAnalysis.company_id == company_id
         ).order_by(NewsAnalysis.created_at.desc()).first()
 
-        events = self.db.query(BusinessEvent).filter(
-            BusinessEvent.company_id == company_id
-        ).order_by(BusinessEvent.detected_date.desc()).all()
+        events = []
+        if news:
+            events = self.db.query(BusinessEvent).filter(
+                BusinessEvent.news_analysis_id == news.id
+            ).order_by(BusinessEvent.detected_date.desc()).all()
 
         recs = self.db.query(Recommendation).filter(
             Recommendation.company_id == company_id

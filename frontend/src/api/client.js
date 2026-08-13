@@ -4,7 +4,7 @@ const API_BASE = '/api';
 
 const client = axios.create({
   baseURL: API_BASE,
-  timeout: 300000, // 5 min — analysis can take time
+  timeout: 900000, // 15 min - large 16MB PDFs take a long time to parse with pdfplumber
   headers: { 'Accept': 'application/json' },
 });
 

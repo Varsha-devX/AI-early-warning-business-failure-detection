@@ -75,17 +75,27 @@ def news_agent(state: AnalysisState) -> dict:
             updates["business_events"] = []
             return updates
 
-        # Step 2: Sentiment analysis
-        logger.info("Running FinBERT sentiment analysis")
+        # Split into articles and deduplicate
         analyzer = _get_sentiment_analyzer()
-        news_analysis = analyzer.analyze(news_text)
+        articles = analyzer._split_into_articles(news_text)
+        unique_articles = analyzer._deduplicate_articles(articles)
+        
+        if not unique_articles:
+            logger.warning("No unique articles found in news PDF")
+            updates["news_analysis"] = None
+            updates["business_events"] = []
+            return updates
+
+        # Step 2: Sentiment analysis
+        logger.info(f"Running FinBERT sentiment analysis on {len(unique_articles)} articles")
+        news_analysis = analyzer.analyze(unique_articles)
         updates["news_analysis"] = news_analysis
         updates["progress"] = 75
 
         # Step 3: Event detection
         logger.info("Detecting business events")
         detector = _get_event_detector()
-        events = detector.detect(news_text)
+        events = detector.detect(unique_articles)
         updates["business_events"] = events
 
         logger.info(

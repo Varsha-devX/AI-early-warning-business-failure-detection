@@ -39,7 +39,14 @@ export default function EventsTimeline({ events }) {
                 </span>
               </div>
               {event.description && (
-                <p className="text-xs text-gray-400">{event.description}</p>
+                <p className="text-xs text-gray-400">
+                  {event.description}
+                  {event.related_articles > 1 && (
+                    <span className="ml-2 text-[10px] text-blue-400">
+                      (Related Articles: {event.related_articles})
+                    </span>
+                  )}
+                </p>
               )}
               {event.source_text && (
                 <p className="text-[10px] text-gray-600 mt-1 italic truncate">

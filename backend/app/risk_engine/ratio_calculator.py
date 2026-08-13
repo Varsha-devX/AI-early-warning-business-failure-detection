@@ -106,9 +106,12 @@ class RatioCalculator:
             percentage=True,
         )
 
-        ratios["return_on_equity"] = self._safe_divide(
-            financial_data.get("net_profit"), equity, percentage=True
-        )
+        if equity is not None and equity != 0:
+            ratios["return_on_equity"] = self._safe_divide(
+                financial_data.get("net_profit"), abs(equity), percentage=True
+            )
+        else:
+            ratios["return_on_equity"] = None
 
         # --- Cash Flow Ratios ---
         ratios["cash_flow_ratio"] = self._safe_divide(
@@ -200,6 +203,13 @@ class RatioCalculator:
         if working_capital is not None and working_capital < 0:
             warnings.append("🔴 CRITICAL: Negative Working Capital — current liabilities exceed current assets")
 
+        # Special: negative equity
+        equity = ratios.get("debt_to_equity") # We don't have equity directly in ratios, but we can check if it was negative
+        # wait, we can't easily check equity from ratios if we don't have it. Let's pass financial_data to _generate_warnings or just check debt_to_equity < 0.
+        # If debt_to_equity < 0, it means equity is negative (since debt is always >= 0).
+        if ratios.get("debt_to_equity") is not None and ratios.get("debt_to_equity") < 0:
+            warnings.append("🔴 CRITICAL: Negative Equity — Total liabilities exceed total assets (Insolvency Risk)")
+
         return warnings
 
     def _calculate_ratio_health_score(self, ratios: dict) -> float:
@@ -231,21 +241,29 @@ class RatioCalculator:
             elif de > 1.0:
                 deductions.append(5)
 
-        # Net Profit Margin (weight: 12)
+        # Net Profit Margin (weight: 20 for severe losses)
         npm = ratios.get("net_profit_margin")
         if npm is not None:
-            if npm < 0:
-                deductions.append(12)
+            if npm < -50:
+                deductions.append(25)  # Catastrophic loss
+            elif npm < -20:
+                deductions.append(20)  # Severe loss
+            elif npm < 0:
+                deductions.append(15)  # Loss-making
             elif npm < 3:
                 deductions.append(8)
             elif npm < 8:
                 deductions.append(4)
 
-        # Operating Margin (weight: 10)
+        # Operating Margin (weight: 18 for severe losses)
         om = ratios.get("operating_margin")
         if om is not None:
-            if om < 0:
-                deductions.append(10)
+            if om < -50:
+                deductions.append(20)  # Catastrophic operating loss
+            elif om < -20:
+                deductions.append(15)  # Severe operating loss
+            elif om < 0:
+                deductions.append(12)  # Operating loss
             elif om < 5:
                 deductions.append(7)
             elif om < 10:
@@ -271,21 +289,25 @@ class RatioCalculator:
             elif dr > 0.4:
                 deductions.append(3)
 
-        # ROA (weight: 8)
+        # ROA (weight: 12 for severe losses)
         roa = ratios.get("return_on_assets")
         if roa is not None:
-            if roa < 0:
-                deductions.append(8)
+            if roa < -10:
+                deductions.append(15)  # Severe asset destruction
+            elif roa < 0:
+                deductions.append(10)  # Loss-making
             elif roa < 2:
                 deductions.append(5)
             elif roa < 5:
                 deductions.append(2)
 
-        # ROE (weight: 8)
+        # ROE (weight: 12 for severe losses)
         roe = ratios.get("return_on_equity")
         if roe is not None:
-            if roe < 0:
-                deductions.append(8)
+            if roe < -20:
+                deductions.append(15)  # Severe equity destruction
+            elif roe < 0:
+                deductions.append(10)  # Loss-making
             elif roe < 5:
                 deductions.append(5)
             elif roe < 10:

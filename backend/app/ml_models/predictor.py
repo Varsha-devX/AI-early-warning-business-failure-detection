@@ -114,6 +114,15 @@ class DistressPredictor:
         proba = self.model.predict_proba(feature_scaled)[0]
         distress_probability = float(proba[1])  # Probability of class 1 (distressed)
 
+        # Expert Overrides: if ML model underestimates risk due to missing data imputation,
+        # override with severe distress signals.
+        if ratios.get("net_profit_margin") is not None and ratios.get("net_profit_margin") < 0:
+            distress_probability = max(distress_probability, 0.85)
+        if ratios.get("return_on_assets") is not None and ratios.get("return_on_assets") < 0:
+            distress_probability = max(distress_probability, 0.80)
+        if ratios.get("debt_to_equity") is not None and ratios.get("debt_to_equity") < 0:
+            distress_probability = max(distress_probability, 0.95)
+
         # Risk score: 0 to 100
         risk_score = round(distress_probability * 100, 1)
 
