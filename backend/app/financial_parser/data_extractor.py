@@ -91,9 +91,9 @@ class FinancialDataExtractor:
         ],
         "equity": [
             r"total\s+equity",
-            r"shareholders?\s*(?:equity|funds?)",
+            r"shareholders?'?\s*(?:equity|funds?)",
             r"net\s*worth",
-            r"total\s+shareholders?\s*equity",
+            r"total\s+shareholders?'?\s*equity",
             r"equity\s+share\s+capital",
         ],
         "inventory": [
