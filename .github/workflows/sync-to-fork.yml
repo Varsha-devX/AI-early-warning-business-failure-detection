@@ -16,10 +16,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Push to friend's fork
         run: |
-          git remote add friend https://x-access-token:${{ secrets.FRIEND_FORK_PAT }}@github.com/Varsha-G-E/AI-early-warning-business-failure-detection.git
+          git remote add friend https://${{ secrets.FRIEND_FORK_PAT }}@github.com/Varsha-G-E/AI-early-warning-business-failure-detection.git
           git push friend main --force
         env:
           FRIEND_FORK_PAT: ${{ secrets.FRIEND_FORK_PAT }}
