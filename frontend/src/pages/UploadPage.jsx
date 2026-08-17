@@ -12,7 +12,6 @@ export default function UploadPage() {
   const [companyName, setCompanyName] = useState('');
   const [industry, setIndustry] = useState('');
   const [financialFile, setFinancialFile] = useState(null);
-  const [newsFile, setNewsFile] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
@@ -61,13 +60,6 @@ export default function UploadPage() {
     }
   }, []);
 
-  const onDropNews = useCallback((acceptedFiles) => {
-    if (acceptedFiles.length > 0) {
-      setNewsFile(acceptedFiles[0]);
-      toast.success(`News file selected: ${acceptedFiles[0].name}`);
-    }
-  }, []);
-
   const financialDropzone = useDropzone({
     onDrop: onDropFinancial,
     accept: {
@@ -76,13 +68,6 @@ export default function UploadPage() {
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
     },
-    maxFiles: 1,
-    maxSize: 50 * 1024 * 1024,
-  });
-
-  const newsDropzone = useDropzone({
-    onDrop: onDropNews,
-    accept: { 'application/pdf': ['.pdf'] },
     maxFiles: 1,
     maxSize: 50 * 1024 * 1024,
   });
@@ -132,7 +117,6 @@ export default function UploadPage() {
       formData.append('company_name', companyName.trim());
       formData.append('industry', industry.trim());
       formData.append('financial_file', financialFile);
-      if (newsFile) formData.append('news_file', newsFile);
 
       const response = await api.uploadAndAnalyze(formData);
       clearInterval(progressInterval);
@@ -321,43 +305,6 @@ export default function UploadPage() {
                     <p className="text-gray-400">Drag & drop your financial statement (PDF, CSV, JPG, PNG) here</p>
                     <p className="text-sm text-gray-600 mt-1">or click to browse (max 50MB)</p>
                   </>
-                )}
-              </div>
-            </div>
-
-            {/* News PDF Upload (Optional) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                <HiOutlineNewspaper className="inline w-4 h-4 mr-1" />
-                News Articles (PDF) — Optional
-              </label>
-              <div
-                {...newsDropzone.getRootProps()}
-                className={`
-                  border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all duration-300
-                  ${newsDropzone.isDragActive
-                    ? 'border-purple-500 bg-purple-500/10'
-                    : newsFile
-                      ? 'border-purple-500/50 bg-purple-500/5'
-                      : 'border-white/10 hover:border-purple-500/50 hover:bg-surface-800/50'
-                  }
-                  ${isAnalyzing ? 'pointer-events-none opacity-50' : ''}
-                `}
-              >
-                <input {...newsDropzone.getInputProps()} />
-                {newsFile ? (
-                  <div className="flex items-center justify-center gap-3">
-                    <HiOutlineNewspaper className="w-6 h-6 text-purple-400" />
-                    <span className="text-purple-400 font-medium">{newsFile.name}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setNewsFile(null); }}
-                      className="ml-2 p-1 hover:bg-red-500/20 rounded-lg transition-colors"
-                    >
-                      <HiOutlineTrash className="w-4 h-4 text-red-400" />
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-gray-500 text-sm">Drop news PDF here for sentiment analysis (optional)</p>
                 )}
               </div>
             </div>

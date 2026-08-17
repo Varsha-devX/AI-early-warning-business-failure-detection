@@ -392,6 +392,32 @@ async def list_companies(db: Session = Depends(get_db), user_id: str = Depends(g
 
 
 # ============================================================
+# Company Intelligence / News
+# ============================================================
+
+@router.get(
+    "/companies/{company_id}/news",
+    summary="Get or fetch company news",
+    description="Get recent company news, or fetch fresh news from the web if forced or not available.",
+)
+async def get_company_news(
+    company_id: str,
+    force_refresh: bool = False,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
+):
+    """Fetch company intelligence and news."""
+    service = _get_service(db, user_id)
+    try:
+        return service.get_or_fetch_company_news(company_id, force_refresh)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error fetching company news: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch company news")
+
+
+# ============================================================
 # Report Download
 # ============================================================
 

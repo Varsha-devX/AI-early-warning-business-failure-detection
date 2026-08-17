@@ -71,6 +71,10 @@ export const api = {
   getCompany: (companyId) =>
     client.get(`/company/${companyId}`),
 
+  // Get company news
+  getCompanyNews: (companyId, forceRefresh = false) =>
+    client.get(`/companies/${companyId}/news`, { params: { force_refresh: forceRefresh } }),
+
   // List all companies
   listCompanies: () =>
     client.get('/companies'),

@@ -488,3 +488,142 @@ class AnalysisService:
             "web_researches": [to_dict(wr) for wr in web_researches],
             "news_articles": [to_dict(na) for na in news_articles],
         }
+
+    def get_or_fetch_company_news(self, company_id: str, force_refresh: bool = False) -> dict:
+        """Fetch news for a company, either from recent cache or fresh web search."""
+        from datetime import datetime, timedelta
+        from app.database.models import Company, NewsAnalysis, NewsArticle, WebResearch
+        from app.services.search_service import SearchService
+        from app.agents.news_agent import _filter_news_relevance, _get_sentiment_analyzer
+        
+        company = self.db.query(Company).filter(Company.id == company_id).first()
+        if not company:
+            raise ValueError(f"Company not found: {company_id}")
+            
+        current_user = getattr(self, 'current_user_id', None)
+        if current_user and company.user_id and company.user_id != current_user:
+            raise ValueError(f"Company not found: {company_id}")
+
+        def to_dict(obj):
+            if obj is None: return None
+            d = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+            for k, v in d.items():
+                if isinstance(v, datetime): d[k] = v.isoformat()
+            return d
+
+        if not force_refresh:
+            # Check for recent news (within last 24 hours)
+            recent_news = self.db.query(NewsAnalysis).filter(
+                NewsAnalysis.company_id == company_id,
+                NewsAnalysis.created_at >= datetime.utcnow() - timedelta(days=1)
+            ).order_by(NewsAnalysis.created_at.desc()).first()
+            
+            if recent_news:
+                news_articles = self.db.query(NewsArticle).filter(NewsArticle.news_analysis_id == recent_news.id).all()
+                return {
+                    "news_analysis": to_dict(recent_news),
+                    "news_articles": [to_dict(na) for na in news_articles]
+                }
+        
+        # Fresh Web Search logic
+        queries = [
+            f"{company.name} latest news",
+            f"{company.name} financial results",
+            f"{company.name} business update",
+            f"{company.name} expansion or layoffs or restructuring"
+        ]
+        
+        search_service = SearchService()
+        retrieved_articles = search_service.search_news(company.name, queries)
+        
+        unique_articles = []
+        article_metadata = []
+        
+        for art in retrieved_articles:
+            title = art.get("title", "")
+            content = art.get("content") or art.get("snippet", "") or title
+            is_relevant, score = _filter_news_relevance(
+                company_name=company.name,
+                legal_name=company.legal_name,
+                industry=company.industry,
+                title=title,
+                content=content
+            )
+            if is_relevant:
+                unique_articles.append(content)
+                article_metadata.append({
+                    "title": title,
+                    "publisher": art.get("publisher", "Web News"),
+                    "publication_date": art.get("publication_date") or datetime.utcnow().isoformat(),
+                    "url": art.get("url"),
+                    "relevance": score
+                })
+        
+        if unique_articles:
+            analyzer = _get_sentiment_analyzer()
+            news_analysis_res = analyzer.analyze(unique_articles)
+            
+            # Persist News Analysis
+            news_analysis_id = str(uuid.uuid4())
+            na = NewsAnalysis(
+                id=news_analysis_id,
+                company_id=company_id,
+                overall_sentiment=news_analysis_res.get("overall_sentiment"),
+                sentiment_score=news_analysis_res.get("sentiment_score"),
+                positive_ratio=news_analysis_res.get("positive_ratio"),
+                neutral_ratio=news_analysis_res.get("neutral_ratio"),
+                negative_ratio=news_analysis_res.get("negative_ratio"),
+                articles=news_analysis_res.get("articles", []),
+                total_articles=len(unique_articles)
+            )
+            self.db.add(na)
+            
+            # Persist News Articles
+            persisted_articles = []
+            for i, art_res in enumerate(news_analysis_res.get("articles", [])):
+                if i < len(article_metadata):
+                    meta = article_metadata[i]
+                    pub_date_raw = meta.get("publication_date")
+                    try:
+                        pub_date = datetime.fromisoformat(pub_date_raw.replace('Z', '+00:00')) if isinstance(pub_date_raw, str) else datetime.utcnow()
+                    except ValueError:
+                        pub_date = datetime.utcnow()
+                        
+                    na_article = NewsArticle(
+                        id=str(uuid.uuid4()),
+                        company_id=company_id,
+                        news_analysis_id=news_analysis_id,
+                        title=meta["title"][:500],
+                        publisher=meta["publisher"][:255],
+                        publication_date=pub_date,
+                        url=meta["url"][:1000] if meta["url"] else None,
+                        sentiment=art_res.get("sentiment"),
+                        relevance=meta["relevance"],
+                        company_match_status="matched"
+                    )
+                    self.db.add(na_article)
+                    persisted_articles.append(na_article)
+            
+            # Persist Web Researches
+            for q in queries:
+                wr = WebResearch(
+                    id=str(uuid.uuid4()),
+                    company_id=company_id,
+                    query=q,
+                    source="Company Intelligence Dashboard",
+                    relevance_score=1.0,
+                    retrieved_at=datetime.utcnow()
+                )
+                self.db.add(wr)
+                
+            self.db.commit()
+            
+            return {
+                "news_analysis": to_dict(na),
+                "news_articles": [to_dict(art) for art in persisted_articles]
+            }
+        else:
+            return {
+                "news_analysis": None,
+                "news_articles": []
+            }

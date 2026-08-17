@@ -33,10 +33,15 @@ export default function CompanyInfo({ company }) {
               {company.country}
             </span>
           )}
-          {company.website && (
+          {company.website ? (
             <a href={company.website} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-400 hover:underline flex items-center gap-1">
               <HiOutlineLink className="w-3.5 h-3.5" />
               Website
+            </a>
+          ) : (
+            <a href={`https://www.google.com/search?q=${encodeURIComponent(company.name + ' official website')}`} target="_blank" rel="noopener noreferrer" className="text-xs text-brand-400 hover:underline flex items-center gap-1">
+              <HiOutlineLink className="w-3.5 h-3.5" />
+              Search Website
             </a>
           )}
           {(company.updated_at || company.created_at) && (

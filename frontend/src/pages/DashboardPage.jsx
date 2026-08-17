@@ -10,11 +10,11 @@ import RiskGauge from '../components/RiskGauge';
 import FinancialRatioCards from '../components/FinancialRatioCards';
 import FinancialCharts from '../components/FinancialCharts';
 import SHAPChart from '../components/SHAPChart';
-import NewsSentimentChart from '../components/NewsSentimentChart';
 import EventsTimeline from '../components/EventsTimeline';
 import WarningSignals from '../components/WarningSignals';
 import RecommendationsPanel from '../components/RecommendationsPanel';
 import ExecutiveReport from '../components/ExecutiveReport';
+import CompanyIntelligence from '../components/CompanyIntelligence';
 
 export default function DashboardPage() {
   const { companyId } = useParams();
@@ -84,7 +84,7 @@ export default function DashboardPage() {
   }
 
   const { company, financial_data, financial_ratios, risk_prediction,
-          news_analysis, business_events, recommendations, executive_report } = data;
+          business_events, recommendations, executive_report, news_analysis, news_articles } = data;
 
   // Extract health score from executive report or risk prediction
   const healthScore = executive_report?.business_health_score;
@@ -164,25 +164,29 @@ export default function DashboardPage() {
           </motion.div>
         </div>
 
-        {/* Row 5: News */}
-        {(news_analysis || (business_events && business_events.length > 0)) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-              <NewsSentimentChart newsAnalysis={news_analysis} />
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
-              <EventsTimeline events={business_events || []} />
-            </motion.div>
-          </div>
+        {/* Row 5: Business Events (if any) */}
+        {business_events && business_events.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
+            <EventsTimeline events={business_events} />
+          </motion.div>
         )}
 
-        {/* Row 6: Recommendations */}
+        {/* Row 6: Company Intelligence / News Module */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+          <CompanyIntelligence 
+            companyId={companyId} 
+            initialNewsAnalysis={news_analysis}
+            initialNewsArticles={news_articles}
+          />
+        </motion.div>
+
+        {/* Row 7: Recommendations */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
           <RecommendationsPanel recommendations={recommendations} />
         </motion.div>
 
-        {/* Row 7: Executive Report */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}>
+        {/* Row 8: Executive Report */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
           <ExecutiveReport report={executive_report} onDownload={handleDownloadPDF} />
         </motion.div>
       </main>

@@ -40,6 +40,17 @@ MOCK_COMPANIES = {
         "description": "ABC Technologies is a custom software development company providing innovative digital transformation services.",
         "confidence": 0.8,
         "source": "Business Directory (Mock Fallback)"
+    },
+    "walmart": {
+        "company_name": "Walmart",
+        "legal_name": "Walmart Inc.",
+        "industry": "Retail",
+        "sub_industry": "Hypermarkets & Supercenters",
+        "country": "United States",
+        "website": "https://www.walmart.com",
+        "description": "Walmart Inc. is an American multinational retail corporation that operates a chain of hypermarkets, discount department stores, and grocery stores from the United States.",
+        "confidence": 1.0,
+        "source": "Official company information (Mock Fallback)"
     }
 }
 
@@ -96,6 +107,32 @@ MOCK_NEWS = {
             "url": "https://www.itnewsindia.com/abc-technologies-layoffs-2026",
             "sentiment": "negative",
             "relevance": 0.98
+        }
+    ],
+    "walmart": [
+        {
+            "title": "Walmart expands its AI-powered inventory management system nationwide",
+            "publisher": "Retail Dive",
+            "publication_date": "2026-08-16T10:30:00",
+            "url": "https://www.retaildive.com/walmart-ai-inventory-2026",
+            "sentiment": "positive",
+            "relevance": 0.95
+        },
+        {
+            "title": "Walmart reports solid Q2 earnings despite shifting consumer habits",
+            "publisher": "CNBC",
+            "publication_date": "2026-08-15T14:15:00",
+            "url": "https://www.cnbc.com/walmart-q2-earnings-2026",
+            "sentiment": "positive",
+            "relevance": 0.92
+        },
+        {
+            "title": "Walmart faces supply chain headwinds amid global shipping delays",
+            "publisher": "Supply Chain Brain",
+            "publication_date": "2026-08-12T09:00:00",
+            "url": "https://www.supplychainbrain.com/walmart-shipping-delays-2026",
+            "sentiment": "negative",
+            "relevance": 0.88
         }
     ]
 }
@@ -206,7 +243,43 @@ class SearchService:
             except Exception as e:
                 logger.warning(f"Gemini Grounding news search failed: {e}")
 
-        # 4. Fallback to Local Mock News
+        # 4. Try Google News RSS (Free and reliable fallback)
+        try:
+            import urllib.request
+            import urllib.parse
+            import xml.etree.ElementTree as ET
+            import email.utils
+            
+            logger.info(f"Searching news using Google News RSS for {company_name}")
+            query = urllib.parse.quote(company_name + " latest news")
+            url = f"https://news.google.com/rss/search?q={query}"
+            
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            res = urllib.request.urlopen(req)
+            tree = ET.fromstring(res.read())
+            
+            articles = []
+            for item in tree.findall('.//item')[:5]:
+                try:
+                    raw_date = item.find('pubDate').text
+                    pub_date = email.utils.parsedate_to_datetime(raw_date).isoformat()
+                except Exception:
+                    pub_date = datetime.utcnow().isoformat()
+                
+                articles.append({
+                    "title": item.find('title').text,
+                    "url": item.find('link').text,
+                    "content": item.find('description').text or "",
+                    "publisher": item.find('source').text if item.find('source') is not None else "Google News",
+                    "publication_date": pub_date
+                })
+                
+            if articles:
+                return articles
+        except Exception as e:
+            logger.warning(f"Google News RSS search failed: {e}")
+
+        # 5. Fallback to Local Mock News
         for key, mock_arts in MOCK_NEWS.items():
             if key in clean_name or clean_name in key:
                 logger.info(f"Mock news fallback triggered for {company_name}")
