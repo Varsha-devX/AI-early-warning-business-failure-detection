@@ -12,17 +12,21 @@ from fastapi.responses import FileResponse
 from loguru import logger
 from sqlalchemy.orm import Session
 
-from app.database.models import User
-
-
+from app.database.models import User, Company, UploadedDocument
 from app.database.connection import get_db
 from app.database.schemas import (
     AnalysisStatusResponse,
     DashboardResponse,
     ErrorResponse,
     UploadResponse,
+    CompanyIdentifyRequest,
+    CompanyIdentifyResponse,
+    CompanyValidateRequest,
+    CompanyValidateResponse,
 )
 from app.services.analysis_service import AnalysisService
+from app.services.search_service import SearchService
+from app.services.verification_service import CompanyVerificationService
 
 router = APIRouter(prefix="/api", tags=["Analysis"])
 
@@ -183,6 +187,40 @@ async def upload_and_analyze(
             industry=industry,
         )
 
+        # Validate company name matches the uploaded document
+        doc = service.db.query(UploadedDocument).filter(UploadedDocument.id == financial_doc_id).first()
+        verify_service = CompanyVerificationService()
+        extracted = verify_service.extract_company_name_from_file(doc.file_path)
+        is_match, similarity = verify_service.verify_company_match(company_name, extracted)
+        
+        status = "verified" if is_match else "mismatch"
+        doc.extracted_company_name = extracted
+        doc.normalized_company_name = verify_service.normalize_company_name(extracted)
+        doc.validation_status = status
+        service.db.commit()
+        
+        if not is_match:
+            logger.warning(f"Company name mismatch: Selected={company_name}, Extracted={extracted}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Company name doesn't match. Selected: {company_name}, Detected: {extracted}"
+            )
+
+        # Update company details from search identity
+        company = service.db.query(Company).filter(Company.id == company_id).first()
+        if company:
+            search_service = SearchService()
+            identity = search_service.identify_company_industry(company_name)
+            company.legal_name = identity.get("legal_name")
+            company.sub_industry = identity.get("sub_industry")
+            company.country = identity.get("country")
+            company.website = identity.get("website")
+            company.identity_confidence = identity.get("confidence")
+            company.identity_source = identity.get("source")
+            if identity.get("industry") and not company.industry:
+                company.industry = identity.get("industry")
+            service.db.commit()
+
         # Upload news document if provided
         news_doc_id = None
         if news_file and news_file.filename:
@@ -203,9 +241,86 @@ async def upload_and_analyze(
 
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Upload and analyze failed: {e}")
         raise HTTPException(status_code=500, detail="Internal server error during upload and analyze")
+
+
+@router.post(
+    "/company/identify",
+    response_model=CompanyIdentifyResponse,
+    summary="Identify company details",
+    description="Automatically identify industry, sub-industry, website, and metadata for a company using web search.",
+)
+async def identify_company(
+    request: CompanyIdentifyRequest,
+    _user_id: str = Depends(get_current_user_id)
+):
+    try:
+        search_service = SearchService()
+        result = search_service.identify_company_industry(request.company_name)
+        return CompanyIdentifyResponse(
+            company_name=result.get("company_name", request.company_name),
+            legal_name=result.get("legal_name"),
+            industry=result.get("industry"),
+            sub_industry=result.get("sub_industry"),
+            country=result.get("country"),
+            website=result.get("website"),
+            description=result.get("description"),
+            confidence=result.get("confidence", 0.0),
+            source=result.get("source", "Unknown")
+        )
+    except Exception as e:
+        logger.error(f"Company identification failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error identifying company details")
+
+
+@router.post(
+    "/reports/validate-company",
+    response_model=CompanyValidateResponse,
+    summary="Validate document company match",
+    description="Validate if the uploaded document company name matches the selected company.",
+)
+async def validate_document_company(
+    request: CompanyValidateRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(get_current_user_id)
+):
+    try:
+        doc = db.query(UploadedDocument).filter(UploadedDocument.id == request.document_id).first()
+        if not doc:
+            raise HTTPException(status_code=404, detail="Document not found")
+            
+        verify_service = CompanyVerificationService()
+        
+        # Extract company name from file
+        extracted = verify_service.extract_company_name_from_file(doc.file_path)
+        is_match, similarity = verify_service.verify_company_match(request.company_name, extracted)
+        
+        status = "verified" if is_match else "mismatch"
+        
+        # Update document
+        doc.extracted_company_name = extracted
+        doc.normalized_company_name = verify_service.normalize_company_name(extracted)
+        doc.validation_status = status
+        db.commit()
+        
+        message = "Company verified" if is_match else "Company name doesn't match."
+        
+        return CompanyValidateResponse(
+            verified=is_match,
+            status=status,
+            selected_company=request.company_name,
+            detected_company=extracted,
+            message=message
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Company validation failed: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error validating company report")
 
 
 # ============================================================

@@ -101,6 +101,15 @@ class ReportService:
                                recommendations, news_analysis, business_events) -> dict:
         """Generate report sections using Gemini AI."""
         prompt = f"""You are an expert financial analyst writing a professional executive report.
+You MUST clearly distinguish between three sources of information in your analysis:
+1. FINANCIAL DATA (Source: Uploaded report)
+2. WEB EVIDENCE (Source: Retrieved articles / Web Research)
+3. AI INTERPRETATION (Source: Model/LLM analysis)
+
+In every section, organize the text using these clear prefixes or sub-headers:
+- **[Financial Data - Uploaded Report]**
+- **[Web Evidence - Web Research]** (or 'Unavailable' if no news/web articles exist)
+- **[AI Interpretation]**
 
 COMPANY: {company_name}
 BUSINESS HEALTH SCORE: {health_score.get('health_score', 'N/A')}/100
@@ -134,13 +143,13 @@ RECOMMENDATIONS:
 
 Generate a professional executive report in JSON format with these sections:
 {{
-  "executive_summary": "A comprehensive 3-5 sentence executive summary...",
-  "financial_health_section": "Detailed analysis of the financial health...",
-  "risk_assessment_section": "Analysis of the risk prediction and key risk factors...",
-  "shap_explanation_section": "Explanation of what drove the AI prediction...",
-  "news_summary_section": "Summary of news sentiment and key events...",
-  "recommendations_section": "Key recommendations summary...",
-  "future_outlook_section": "Forward-looking assessment and outlook..."
+  "executive_summary": "A comprehensive 3-5 sentence executive summary following the source separation...",
+  "financial_health_section": "Detailed analysis of the financial health following the source separation...",
+  "risk_assessment_section": "Analysis of the risk prediction and key risk factors following the source separation...",
+  "shap_explanation_section": "Explanation of what drove the AI prediction following the source separation...",
+  "news_summary_section": "Summary of news sentiment and key events following the source separation...",
+  "recommendations_section": "Key recommendations summary following the source separation...",
+  "future_outlook_section": "Forward-looking assessment and outlook following the source separation..."
 }}
 
 Write professionally. Reference actual data values. Do NOT invent numbers.

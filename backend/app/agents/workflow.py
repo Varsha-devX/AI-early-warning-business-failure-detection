@@ -59,17 +59,7 @@ def build_analysis_workflow() -> StateGraph:
 
     workflow.add_edge("financial_agent", "prediction_agent")
     workflow.add_edge("prediction_agent", "explainability_agent")
-
-    # Conditional: news analysis
-    workflow.add_conditional_edges(
-        "explainability_agent",
-        _should_analyze_news,
-        {
-            "news_agent": "news_agent",
-            "recommendation_agent": "recommendation_agent",
-        },
-    )
-
+    workflow.add_edge("explainability_agent", "news_agent")
     workflow.add_edge("news_agent", "recommendation_agent")
     workflow.add_edge("recommendation_agent", "report_agent")
     workflow.add_edge("report_agent", END)

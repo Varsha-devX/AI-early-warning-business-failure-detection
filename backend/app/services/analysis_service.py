@@ -18,7 +18,7 @@ from app.config import get_settings
 from app.database.models import (
     BusinessEvent, Company, ExecutiveReport, FinancialData,
     FinancialRatio, NewsAnalysis, Recommendation, RiskPrediction,
-    UploadedDocument,
+    UploadedDocument, WebResearch, NewsArticle,
 )
 
 
@@ -342,6 +342,37 @@ class AnalysisService:
             )
             self.db.add(er)
 
+        # Web Research
+        web_researches = result.get("web_researches", [])
+        for wr_data in web_researches:
+            wr = WebResearch(
+                id=str(uuid.uuid4()),
+                company_id=company_id,
+                query=wr_data.get("query"),
+                source=wr_data.get("source"),
+                url=wr_data.get("url"),
+                relevance_score=wr_data.get("relevance_score"),
+                retrieved_at=datetime.utcnow()
+            )
+            self.db.add(wr)
+
+        # News Articles
+        if news_analysis:
+            for art in news_analysis.get("articles", []):
+                na_article = NewsArticle(
+                    id=str(uuid.uuid4()),
+                    company_id=company_id,
+                    news_analysis_id=news_analysis_id,
+                    title=art.get("title", art.get("text", "News Article")),
+                    publisher=art.get("publisher", "Web News"),
+                    publication_date=datetime.fromisoformat(art["publication_date"]) if isinstance(art.get("publication_date"), str) else datetime.utcnow(),
+                    url=art.get("url"),
+                    sentiment=art.get("sentiment"),
+                    relevance=art.get("relevance", 1.0),
+                    company_match_status="matched"
+                )
+                self.db.add(na_article)
+
         self.db.commit()
         logger.info("All results persisted to database")
 
@@ -350,7 +381,7 @@ class AnalysisService:
         Get complete dashboard data for a company.
 
         Returns:
-            Dictionary with all analysis results for the dashboard.
+            Dictionary with all time-aligned analysis results for the dashboard.
         """
         company = self.db.query(Company).filter(Company.id == company_id).first()
         if not company:
@@ -360,42 +391,86 @@ class AnalysisService:
         if current_user and company.user_id and company.user_id != current_user:
             raise ValueError(f"Company not found: {company_id}")
 
-        # Get latest of each result type
+        # Get latest financial data
         financial_data = self.db.query(FinancialData).filter(
             FinancialData.company_id == company_id
         ).order_by(FinancialData.created_at.desc()).first()
 
-        ratios = self.db.query(FinancialRatio).filter(
-            FinancialRatio.company_id == company_id
-        ).order_by(FinancialRatio.created_at.desc()).first()
-
-        prediction = self.db.query(RiskPrediction).filter(
-            RiskPrediction.company_id == company_id
-        ).order_by(RiskPrediction.created_at.desc()).first()
-
-        news = self.db.query(NewsAnalysis).filter(
-            NewsAnalysis.company_id == company_id
-        ).order_by(NewsAnalysis.created_at.desc()).first()
-
+        ratios = None
+        prediction = None
+        news = None
         events = []
-        if news:
-            events = self.db.query(BusinessEvent).filter(
-                BusinessEvent.news_analysis_id == news.id
-            ).order_by(BusinessEvent.detected_date.desc()).all()
+        recs = []
+        report = None
+        web_researches = []
+        news_articles = []
 
-        recs = self.db.query(Recommendation).filter(
-            Recommendation.company_id == company_id
-        ).order_by(Recommendation.created_at.desc()).all()
+        if financial_data:
+            # Query time-aligned ratios
+            ratios = self.db.query(FinancialRatio).filter(
+                FinancialRatio.financial_data_id == financial_data.id
+            ).first()
 
-        report = self.db.query(ExecutiveReport).filter(
-            ExecutiveReport.company_id == company_id
-        ).order_by(ExecutiveReport.generated_at.desc()).first()
+            # Align other records within 30 seconds of the financial data created_at timestamp
+            from datetime import timedelta
+            time_margin = 30.0
+            start_time = financial_data.created_at - timedelta(seconds=time_margin)
+            end_time = financial_data.created_at + timedelta(seconds=time_margin)
+
+            prediction = self.db.query(RiskPrediction).filter(
+                RiskPrediction.company_id == company_id,
+                RiskPrediction.created_at.between(start_time, end_time)
+            ).first()
+            if not prediction:
+                prediction = self.db.query(RiskPrediction).filter(
+                    RiskPrediction.company_id == company_id
+                ).order_by(RiskPrediction.created_at.desc()).first()
+
+            news = self.db.query(NewsAnalysis).filter(
+                NewsAnalysis.company_id == company_id,
+                NewsAnalysis.created_at.between(start_time, end_time)
+            ).first()
+            if not news:
+                news = self.db.query(NewsAnalysis).filter(
+                    NewsAnalysis.company_id == company_id
+                ).order_by(NewsAnalysis.created_at.desc()).first()
+
+            if news:
+                events = self.db.query(BusinessEvent).filter(
+                    BusinessEvent.news_analysis_id == news.id
+                ).order_by(BusinessEvent.detected_date.desc()).all()
+                
+                news_articles = self.db.query(NewsArticle).filter(
+                    NewsArticle.news_analysis_id == news.id
+                ).all()
+
+            recs = self.db.query(Recommendation).filter(
+                Recommendation.company_id == company_id,
+                Recommendation.created_at.between(start_time, end_time)
+            ).all()
+            if not recs:
+                recs = self.db.query(Recommendation).filter(
+                    Recommendation.company_id == company_id
+                ).order_by(Recommendation.created_at.desc()).all()
+
+            report = self.db.query(ExecutiveReport).filter(
+                ExecutiveReport.company_id == company_id,
+                ExecutiveReport.generated_at.between(start_time, end_time)
+            ).first()
+            if not report:
+                report = self.db.query(ExecutiveReport).filter(
+                    ExecutiveReport.company_id == company_id
+                ).order_by(ExecutiveReport.generated_at.desc()).first()
+
+            web_researches = self.db.query(WebResearch).filter(
+                WebResearch.company_id == company_id,
+                WebResearch.retrieved_at.between(start_time, end_time)
+            ).all()
 
         def to_dict(obj):
             if obj is None:
                 return None
             d = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
-            # Convert datetime objects to ISO format strings
             for k, v in d.items():
                 if isinstance(v, datetime):
                     d[k] = v.isoformat()
@@ -410,4 +485,6 @@ class AnalysisService:
             "business_events": [to_dict(e) for e in events],
             "recommendations": [to_dict(r) for r in recs],
             "executive_report": to_dict(report),
+            "web_researches": [to_dict(wr) for wr in web_researches],
+            "news_articles": [to_dict(na) for na in news_articles],
         }

@@ -24,7 +24,13 @@ class CompanyCreate(BaseModel):
 class CompanyResponse(BaseModel):
     id: str
     name: str
+    legal_name: Optional[str] = None
     industry: Optional[str] = None
+    sub_industry: Optional[str] = None
+    country: Optional[str] = None
+    website: Optional[str] = None
+    identity_confidence: Optional[float] = None
+    identity_source: Optional[str] = None
     description: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -243,3 +249,32 @@ class UploadResponse(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     error_code: Optional[str] = None
+
+
+class CompanyIdentifyRequest(BaseModel):
+    company_name: str = Field(..., min_length=1, description="Company name to identify")
+
+
+class CompanyIdentifyResponse(BaseModel):
+    company_name: str
+    legal_name: Optional[str] = None
+    industry: Optional[str] = None
+    sub_industry: Optional[str] = None
+    country: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+    confidence: float
+    source: str
+
+
+class CompanyValidateRequest(BaseModel):
+    company_name: str = Field(..., min_length=1, description="Expected company name")
+    document_id: str = Field(..., min_length=1, description="Document ID to validate")
+
+
+class CompanyValidateResponse(BaseModel):
+    verified: bool
+    status: str  # verified, mismatch, pending
+    selected_company: str
+    detected_company: Optional[str] = None
+    message: str

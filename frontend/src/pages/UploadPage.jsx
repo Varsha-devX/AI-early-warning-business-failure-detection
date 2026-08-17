@@ -16,6 +16,43 @@ export default function UploadPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
+  
+  const [isIdentifying, setIsIdentifying] = useState(false);
+  const [subIndustry, setSubIndustry] = useState('');
+  const [identityStatus, setIdentityStatus] = useState(''); // 'identified', 'failed', ''
+  const [mismatchError, setMismatchError] = useState(null); // { selected, detected }
+
+  const handleCompanyNameBlur = async () => {
+    if (!companyName.trim()) return;
+    
+    setIsIdentifying(true);
+    setIdentityStatus('');
+    setMismatchError(null);
+    try {
+      const response = await api.post('/company/identify', { company_name: companyName.trim() });
+      const data = response.data;
+      if (data && data.industry) {
+        setIndustry(data.industry);
+        setSubIndustry(data.sub_industry || '');
+        setIdentityStatus('identified');
+        toast.success(`Industry identified: ${data.industry}`);
+      } else {
+        setIdentityStatus('failed');
+      }
+    } catch (error) {
+      console.error('Failed to identify company industry', error);
+      setIdentityStatus('failed');
+    } finally {
+      setIsIdentifying(false);
+    }
+  };
+
+  const handleCompanyNameChange = (e) => {
+    setCompanyName(e.target.value);
+    setIdentityStatus('');
+    setSubIndustry('');
+    setMismatchError(null);
+  };
 
   const onDropFinancial = useCallback((acceptedFiles) => {
     if (acceptedFiles.length > 0) {
@@ -113,7 +150,18 @@ export default function UploadPage() {
     } catch (error) {
       clearInterval(progressInterval);
       const msg = error.response?.data?.detail || error.message || 'Analysis failed';
-      toast.error(msg);
+      
+      if (msg.includes("Company name doesn't match")) {
+        const selectedMatch = msg.match(/Selected:\s*(.+?)(?:,|$)/);
+        const detectedMatch = msg.match(/Detected:\s*(.+?)(?:,|$)/);
+        setMismatchError({
+          selected: selectedMatch ? selectedMatch[1] : companyName,
+          detected: detectedMatch ? detectedMatch[1] : 'Unknown'
+        });
+        toast.error("Company name doesn't match.");
+      } else {
+        toast.error(msg);
+      }
       setIsAnalyzing(false);
       setProgress(0);
       setStatusMessage('');
@@ -159,20 +207,56 @@ export default function UploadPage() {
 
           {/* Form Card */}
           <div className="glass-card p-8 space-y-6">
+            {mismatchError && (
+              <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-red-400 font-medium">
+                  <span className="px-2 py-0.5 text-xs bg-red-500/20 rounded-full font-bold">MISMATCH</span>
+                  <span>Company name doesn't match the uploaded report.</span>
+                </div>
+                <div className="text-sm text-gray-400 pl-7 space-y-1">
+                  <p><strong>Selected Company:</strong> {mismatchError.selected}</p>
+                  <p><strong>Detected Company:</strong> {mismatchError.detected}</p>
+                  <p className="text-red-400/80 mt-2 text-xs">Please upload the correct report or select the correct company.</p>
+                </div>
+              </div>
+            )}
+
             {/* Company Name */}
             <div>
               <label htmlFor="company-name" className="block text-sm font-medium text-gray-300 mb-2">
                 Company Name *
               </label>
-              <input
-                id="company-name"
-                type="text"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="e.g. ABC Retail Ltd."
-                className="w-full px-4 py-3 bg-surface-800/80 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
-                disabled={isAnalyzing}
-              />
+              <div className="relative">
+                <input
+                  id="company-name"
+                  type="text"
+                  value={companyName}
+                  onChange={handleCompanyNameChange}
+                  onBlur={handleCompanyNameBlur}
+                  placeholder="e.g. ABC Retail Ltd."
+                  className="w-full px-4 py-3 bg-surface-800/80 border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                  disabled={isAnalyzing}
+                />
+                {isIdentifying && (
+                  <div className="absolute right-4 top-3 flex items-center gap-2 text-sm text-gray-500">
+                    <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span>Identifying...</span>
+                  </div>
+                )}
+              </div>
+              
+              {identityStatus === 'identified' && (
+                <div className="mt-2 text-xs text-emerald-400 flex items-center gap-1.5 pl-1">
+                  <span className="px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 rounded font-bold text-[10px]">VERIFIED</span>
+                  <span>Industry identified from web research {subIndustry ? `(${subIndustry})` : ''}</span>
+                </div>
+              )}
+              {identityStatus === 'failed' && (
+                <div className="mt-2 text-xs text-amber-400 flex items-center gap-1.5 pl-1">
+                  <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded font-bold text-[10px]">WARNING</span>
+                  <span>Industry could not be verified automatically. Please select the industry manually.</span>
+                </div>
+              )}
             </div>
 
             {/* Industry (required) */}

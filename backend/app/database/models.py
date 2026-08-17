@@ -43,7 +43,13 @@ class Company(Base):
 
     id = Column(String, primary_key=True, default=generate_uuid)
     name = Column(String(255), nullable=False)
+    legal_name = Column(String(255), nullable=True)
     industry = Column(String(255), nullable=True)
+    sub_industry = Column(String(255), nullable=True)
+    country = Column(String(100), nullable=True)
+    website = Column(String(500), nullable=True)
+    identity_confidence = Column(Float, nullable=True)
+    identity_source = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -58,6 +64,8 @@ class Company(Base):
     business_events = relationship("BusinessEvent", back_populates="company", cascade="all, delete-orphan")
     recommendations = relationship("Recommendation", back_populates="company", cascade="all, delete-orphan")
     executive_reports = relationship("ExecutiveReport", back_populates="company", cascade="all, delete-orphan")
+    web_researches = relationship("WebResearch", back_populates="company", cascade="all, delete-orphan")
+    news_articles = relationship("NewsArticle", back_populates="company", cascade="all, delete-orphan")
 
 
 class UploadedDocument(Base):
@@ -73,6 +81,9 @@ class UploadedDocument(Base):
     upload_date = Column(DateTime, default=datetime.utcnow)
     processing_status = Column(String(50), default="pending")  # pending, processing, completed, failed
     error_message = Column(Text, nullable=True)
+    extracted_company_name = Column(String(255), nullable=True)
+    normalized_company_name = Column(String(255), nullable=True)
+    validation_status = Column(String(50), nullable=True, default="pending")  # verified, mismatch, pending
 
     company = relationship("Company", back_populates="documents")
 
@@ -254,3 +265,37 @@ class ExecutiveReport(Base):
     generated_at = Column(DateTime, default=datetime.utcnow)
 
     company = relationship("Company", back_populates="executive_reports")
+
+
+class WebResearch(Base):
+    """Retrieved research data from the web."""
+    __tablename__ = "web_research"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    company_id = Column(String, ForeignKey("companies.id"), nullable=False)
+    query = Column(String(500), nullable=False)
+    source = Column(String(255), nullable=True)
+    url = Column(String(1000), nullable=True)
+    relevance_score = Column(Float, nullable=True)
+    retrieved_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("Company", back_populates="web_researches")
+
+
+class NewsArticle(Base):
+    """Retrieved news articles for news analysis & fallback."""
+    __tablename__ = "news_articles"
+
+    id = Column(String, primary_key=True, default=generate_uuid)
+    company_id = Column(String, ForeignKey("companies.id"), nullable=False)
+    news_analysis_id = Column(String, ForeignKey("news_analysis.id"), nullable=True)
+    title = Column(String(500), nullable=False)
+    publisher = Column(String(255), nullable=True)
+    publication_date = Column(DateTime, nullable=True)
+    url = Column(String(1000), nullable=True)
+    sentiment = Column(String(20), nullable=True)
+    relevance = Column(Float, nullable=True)
+    company_match_status = Column(String(50), nullable=True, default="pending")  # matched, unrelated, pending
+    retrieved_at = Column(DateTime, default=datetime.utcnow)
+
+    company = relationship("Company", back_populates="news_articles")
