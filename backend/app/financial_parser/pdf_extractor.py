@@ -61,6 +61,12 @@ class PDFExtractor:
                     # Try pdfplumber text extraction first
                     page_text = page.extract_text() or ""
 
+                    # FAST PATH: Skip OCR and table extraction for the middle pages of huge PDFs
+                    if total_pages > 20 and (10 <= i <= total_pages - 10):
+                        page_texts.append(page_text)
+                        all_text.append(page_text)
+                        continue
+
                     # If page has very little text, try OCR
                     if len(page_text.strip()) < 50:
                         logger.debug(f"Page {i + 1}: Low text content, attempting OCR")

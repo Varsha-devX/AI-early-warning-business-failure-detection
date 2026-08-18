@@ -57,6 +57,10 @@ export const api = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
 
+  // Identify company industry
+  identifyCompany: (data) =>
+    client.post('/company/identify', data),
+
   // Upload and analyze in one step
   uploadAndAnalyze: (formData) =>
     client.post('/analyze-upload', formData, {

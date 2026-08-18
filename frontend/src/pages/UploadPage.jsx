@@ -28,7 +28,7 @@ export default function UploadPage() {
     setIdentityStatus('');
     setMismatchError(null);
     try {
-      const response = await api.post('/company/identify', { company_name: companyName.trim() });
+      const response = await api.identifyCompany({ company_name: companyName.trim() });
       const data = response.data;
       if (data && data.industry) {
         setIndustry(data.industry);
