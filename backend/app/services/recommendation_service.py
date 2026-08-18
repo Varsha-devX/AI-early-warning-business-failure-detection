@@ -107,7 +107,7 @@ class RecommendationService:
         business_events: list[dict] | None,
     ) -> str:
         """Build the Gemini prompt with all evidence."""
-        prompt = f"""You are a senior financial analyst providing actionable recommendations.
+        prompt = f"""You are a senior financial advisor providing actionable recommendations.
 
 COMPANY: {company_name}
 
@@ -142,27 +142,45 @@ DETECTED BUSINESS EVENTS:
 """
 
         prompt += """
-Based on the above evidence ONLY (do not invent any financial values), generate recommendations in the following JSON format:
+Based on the above evidence ONLY (do not invent any financial values), generate SHORT, SIMPLE, DATA-DRIVEN recommendations.
+
+### 1. Use Simple Human Language
+Explain everything as if you are speaking to a busy business owner who does not have a finance or accounting background.
+- Avoid technical jargon (e.g. SHAP feature importance, inference vectors, complex statistical terminology).
+- Explain what the number means in everyday business language.
+- Use conversational titles describing the business problem (e.g. "Too Much Debt Is Increasing Financial Pressure" instead of "Debt-to-Equity Ratio Alert").
+
+### 2. Connect Numbers to Real Business Meaning
+Do not simply display a number in evidence. Always explain what the number means in practical terms. (e.g. "Net profit margin is -3.58%, meaning the business is currently losing money after covering its expenses.")
+
+### 3. Never Invent Problems
+Only recommend something when the available business data provides reasonable evidence for it. If the business is performing well, do not pad with generic advice. Generate a recommendation ONLY when there is sufficient evidence. Show UP TO a maximum of 3 top priorities.
+
+### 4. Be Honest About Uncertainty
+Use language such as "This suggests..." or "A key concern is...". Do not use guaranteed claims like "This will definitely...".
+
+### 5. Prioritize Recommendations
+Sort by:
+1. Potential financial impact and severity
+2. Risk contribution
+3. Ease of taking action
+
+CRITICAL INSTRUCTION: You MUST return the output in the EXACT JSON format below. Do not output any plain text or markdown outside the JSON block. Even if there are 0 issues, you MUST still return this exact JSON structure with an empty list.
 
 {
-  "financial_recommendations": [
-    {"title": "...", "description": "...", "priority": "High/Medium/Low", "impact": "High/Medium/Low"}
-  ],
-  "operational_recommendations": [
-    {"title": "...", "description": "...", "priority": "High/Medium/Low", "impact": "High/Medium/Low"}
-  ],
-  "strategic_recommendations": [
-    {"title": "...", "description": "...", "priority": "High/Medium/Low", "impact": "High/Medium/Low"}
-  ],
-  "risk_mitigation": [
-    {"title": "...", "description": "...", "priority": "High/Medium/Low", "impact": "High/Medium/Low"}
-  ],
-  "summary": "A 2-3 sentence executive summary of the key recommendations."
+  "summary": "A 1-2 sentence executive summary explaining the overall financial health in plain language.",
+  "top_priorities": [
+    {
+      "title": "Conversational Problem Title (e.g., Cash Is Leaving the Business Faster Than It Comes In)",
+      "priority": "Critical, High, Medium, or Low",
+      "problem": "Simple explanation of what is happening.",
+      "why_it_matters": "Explain the real-world business consequence.",
+      "evidence": "Exact metric/data + simple explanation of what it means.",
+      "first_step": "One clear, highly specific, and practical action step they can take today. It must explicitly answer the question: 'What exactly should I do next?'",
+      "potential_impact": "Explain the realistic benefit of taking the action."
+    }
+  ]
 }
-
-Provide 2-4 recommendations per category. Be specific and actionable.
-Reference actual financial values from the data. Do NOT fabricate numbers.
-Return ONLY valid JSON, no markdown formatting.
 """
         return prompt
 
@@ -171,59 +189,43 @@ Return ONLY valid JSON, no markdown formatting.
         try:
             import re
             cleaned = text.strip()
-            # Clean markdown fences or surrounding text
             match = re.search(r'```(?:json)?\s*(.*?)\s*```', cleaned, re.DOTALL | re.IGNORECASE)
             if match:
                 cleaned = match.group(1)
             else:
-                # Fallback to finding outermost brackets
                 start = cleaned.find('{')
                 end = cleaned.rfind('}')
                 if start != -1 and end != -1:
                     cleaned = cleaned[start:end+1]
 
             data = json.loads(cleaned)
+            
+            priorities = data.get("top_priorities", [])
+            if len(priorities) > 3:
+                priorities = priorities[:3]
+                
             logger.info("Successfully parsed Gemini recommendations")
-            return data
+            return {
+                "top_priorities": priorities,
+                "summary": data.get("summary", "")
+            }
         except json.JSONDecodeError as e:
             logger.warning(f"Failed to parse Gemini JSON response: {e}")
             return {
-                "financial_recommendations": [],
-                "operational_recommendations": [],
-                "strategic_recommendations": [],
-                "risk_mitigation": [],
-                "summary": text[:500] if text else "Recommendations could not be generated.",
+                "top_priorities": [],
+                "summary": "Recommendations could not be generated.",
                 "raw_response": text,
+                "error": True
             }
 
     def _normalize_recommendations(self, recommendations: dict) -> dict:
         """Normalize recommendation payloads to consistent structure."""
-        normalized = {
-            "financial_recommendations": [],
-            "operational_recommendations": [],
-            "strategic_recommendations": [],
-            "risk_mitigation": [],
-            "summary": "",
-            "raw_response": recommendations.get("raw_response", "") if isinstance(recommendations, dict) else "",
+        return {
+            "summary": recommendations.get("summary", ""),
+            "top_priorities": recommendations.get("top_priorities", []) if isinstance(recommendations.get("top_priorities"), list) else [],
+            "raw_response": recommendations.get("raw_response", ""),
+            "error": recommendations.get("error", False)
         }
-
-        if not isinstance(recommendations, dict):
-            return normalized
-
-        for key in [
-            "financial_recommendations",
-            "operational_recommendations",
-            "strategic_recommendations",
-            "risk_mitigation",
-        ]:
-            value = recommendations.get(key)
-            if isinstance(value, list):
-                normalized[key] = [item for item in value if isinstance(item, dict)]
-
-        normalized["summary"] = recommendations.get("summary") or "Key recommendations are provided to improve business performance."
-        normalized["raw_response"] = recommendations.get("raw_response", normalized["raw_response"])
-
-        return normalized
 
     def _ensure_minimum_recommendations(
         self,
@@ -233,80 +235,23 @@ Return ONLY valid JSON, no markdown formatting.
         health_score: dict,
         business_events: list[dict] | None,
     ) -> dict:
-        """Ensure the report contains at least three recommendations."""
+        """Fallback if the AI failed entirely."""
         if not isinstance(recommendations, dict):
-            recommendations = self._generate_fallback(ratios, prediction, health_score, business_events)
+            return self._generate_fallback(ratios, prediction, health_score, business_events)
 
-        categories = [
-            "financial_recommendations",
-            "operational_recommendations",
-            "strategic_recommendations",
-            "risk_mitigation",
-        ]
+        if recommendations.get("error"):
+            logger.info("AI failed to output JSON, using fallback.")
+            return self._generate_fallback(ratios, prediction, health_score, business_events)
 
-        total = sum(len(recommendations.get(cat, [])) for cat in categories)
-        if total >= 3:
+        if len(recommendations.get("top_priorities", [])) > 0:
             return recommendations
 
         fallback = self._generate_fallback(ratios, prediction, health_score, business_events)
-        existing_titles = {
-            item.get("title") for cat in categories for item in recommendations.get(cat, []) if item.get("title")
-        }
+        
+        # Only return fallback if it actually found real issues
+        if len(fallback.get("top_priorities", [])) > 0:
+            return fallback
 
-        for cat in categories:
-            for item in fallback.get(cat, []):
-                if total >= 3:
-                    break
-                title = item.get("title")
-                if title and title not in existing_titles:
-                    recommendations[cat].append(item)
-                    existing_titles.add(title)
-                    total += 1
-            if total >= 3:
-                break
-
-        generic_templates = [
-            {
-                "title": "Maintain current financial monitoring",
-                "description": "Continue regular monitoring of cash flow, liquidity, and leverage ratios to prevent adverse changes.",
-                "priority": "Medium",
-                "impact": "Medium",
-            },
-            {
-                "title": "Review operational expenses",
-                "description": "Evaluate recent operating costs and identify areas where expenditure can be reduced without compromising service delivery.",
-                "priority": "Medium",
-                "impact": "Medium",
-            },
-            {
-                "title": "Strengthen risk oversight",
-                "description": "Institute weekly review meetings for finance and operations to monitor emerging risks and ensure timely mitigation actions.",
-                "priority": "Medium",
-                "impact": "Medium",
-            },
-        ]
-
-        generic_index = 0
-        while total < 3 and generic_index < len(generic_templates):
-            item = generic_templates[generic_index]
-            if item["title"] not in existing_titles:
-                recommendations["financial_recommendations"].append(item)
-                existing_titles.add(item["title"])
-                total += 1
-            generic_index += 1
-
-        if total < 3:
-            recommendations["financial_recommendations"].append({
-                "title": "Continue executive oversight",
-                "description": "Ensure leadership reviews the key financial dashboards weekly to respond quickly to adverse changes.",
-                "priority": "Medium",
-                "impact": "Medium",
-            })
-            total += 1
-
-        recommendations["summary"] = recommendations.get("summary") or (
-            f"Generated {total} recommendations to help improve business performance."
-        )
         return recommendations
 
     def _generate_fallback(
@@ -319,93 +264,78 @@ Return ONLY valid JSON, no markdown formatting.
         """Generate rule-based recommendations when Gemini is unavailable."""
         logger.info("Generating fallback rule-based recommendations")
 
-        financial = []
-        operational = []
-        strategic = []
-        risk_mitigation = []
+        top_priorities = []
 
         # Current Ratio
         cr = ratios.get("current_ratio")
         if cr is not None and cr < 1.0:
-            financial.append({
-                "title": "Improve Liquidity Position",
-                "description": f"Current ratio is {cr:.2f}, below the safe threshold of 1.0. Consider converting long-term assets to liquid assets, negotiating extended payment terms with creditors, or securing a working capital credit line.",
+            top_priorities.append({
+                "title": "Cash Reserves Need Attention",
                 "priority": "High",
-                "impact": "High",
+                "problem": "The business doesn't have enough short-term assets to easily cover its upcoming bills.",
+                "why_it_matters": "This means you might struggle to pay suppliers or meet payroll if cash doesn't come in fast enough.",
+                "evidence": f"Current ratio is {cr:.2f}, meaning the business lacks the liquid assets to cover its short-term liabilities.",
+                "first_step": "Run a 'flash sale' or discount promotion this week on your oldest inventory to immediately convert it into cash.",
+                "potential_impact": "More breathing room to pay upcoming expenses."
             })
 
         # Debt-to-Equity
         de = ratios.get("debt_to_equity")
         if de is not None and de > 2.0:
-            financial.append({
-                "title": "Reduce Debt Leverage",
-                "description": f"Debt-to-equity ratio of {de:.2f} indicates high leverage. Prioritize debt repayment, explore equity financing options, and avoid new borrowings until the ratio improves below 1.5.",
+            top_priorities.append({
+                "title": "Too Much Debt Is Increasing Financial Pressure",
                 "priority": "High",
-                "impact": "High",
+                "problem": "Your business is relying heavily on borrowed money.",
+                "why_it_matters": "High debt means more money goes toward interest, leaving less cash for running the business.",
+                "evidence": f"Debt-to-equity ratio is {de:.2f}, meaning the business owes significantly more money to creditors than it is worth.",
+                "first_step": "Pull up your loan statements today, find the debt with the highest interest rate, and allocate any spare cash to pay down the principal.",
+                "potential_impact": "Lower interest costs and a stronger balance sheet."
             })
 
         # Negative cash flow
         cfr = ratios.get("cash_flow_ratio")
         if cfr is not None and cfr < 0:
-            financial.append({
-                "title": "Address Negative Cash Flow",
-                "description": f"Operating cash flow ratio is {cfr:.2f}, indicating negative cash generation. Review receivables collection, renegotiate supplier terms, and identify non-essential expenditure cuts.",
-                "priority": "High",
-                "impact": "High",
+            top_priorities.append({
+                "title": "Cash Is Leaving the Business Faster Than It Comes In",
+                "priority": "Critical",
+                "problem": "The business is currently spending more cash than it generates from normal operations.",
+                "why_it_matters": "If this continues, available cash can fall quickly and you may need emergency funding.",
+                "evidence": f"Operating cash flow ratio is {cfr:.2f}, indicating that core operations are draining cash rather than generating it.",
+                "first_step": "Export a list of your overdue customer accounts today and personally call the top 3 largest accounts to collect payment.",
+                "potential_impact": "Better cash availability and lower financial stress."
             })
 
         # Low margins
         npm = ratios.get("net_profit_margin")
         if npm is not None and npm < 5:
-            operational.append({
-                "title": "Improve Profit Margins",
-                "description": f"Net profit margin of {npm:.2f}% is below industry average. Conduct cost optimization review, evaluate pricing strategy, and identify underperforming product lines.",
+            top_priorities.append({
+                "title": "You're Making Sales, But Profit Is Still Low",
                 "priority": "Medium",
-                "impact": "High",
+                "problem": "The business is generating revenue, but expenses are taking up too much of it.",
+                "why_it_matters": "If this continues, selling more products won't actually put more money in the bank.",
+                "evidence": f"Net profit margin is {npm:.2f}%, meaning the business retains very little or no actual profit from its sales.",
+                "first_step": "Review your top 3 highest business expenses this month and identify at least one vendor cost you can cancel or renegotiate.",
+                "potential_impact": "Higher profit retained from each sale."
             })
 
         # High risk prediction
         risk_score = prediction.get("risk_score", 0)
         if risk_score > 70:
-            strategic.append({
-                "title": "Develop Financial Turnaround Plan",
-                "description": f"AI model indicates {risk_score}% distress risk. Engage financial advisory for restructuring options. Consider asset divestiture and strategic partnerships.",
-                "priority": "High",
-                "impact": "High",
+            top_priorities.insert(0, {
+                "title": "The Business Is Facing Severe Headwinds",
+                "priority": "Critical",
+                "problem": "Overall financial patterns look similar to businesses that experience severe distress.",
+                "why_it_matters": "Without serious changes, the business is at high risk of running out of options.",
+                "evidence": f"ML risk score is {risk_score}%, indicating a highly elevated statistical probability of severe financial distress.",
+                "first_step": "Schedule a consultation with a certified turnaround professional or financial advisor this week to discuss debt restructuring options.",
+                "potential_impact": "A clear plan to stabilize operations and survive."
             })
 
-        # Business events
-        if business_events:
-            for event in business_events[:3]:
-                risk_mitigation.append({
-                    "title": f"Address {event['event_type']}",
-                    "description": f"A {event['event_type'].lower()} event has been detected. Develop a response plan and communicate proactively with stakeholders.",
-                    "priority": "High" if event.get("severity") in ("Critical", "High") else "Medium",
-                    "impact": "High" if event.get("severity") in ("Critical", "High") else "Medium",
-                })
-
-        # Default recommendations if none generated
-        if not any([financial, operational, strategic, risk_mitigation]):
-            financial.append({
-                "title": "Maintain Financial Health",
-                "description": "Financial indicators are within acceptable ranges. Continue monitoring key ratios and maintain current financial discipline.",
-                "priority": "Low",
-                "impact": "Medium",
-            })
+        if len(top_priorities) > 3:
+            top_priorities = top_priorities[:3]
 
         hs = health_score.get("health_score", 50)
-        summary = f"Business Health Score is {hs}/100. "
-        if hs < 40:
-            summary += "Immediate action required to address critical financial distress indicators."
-        elif hs < 60:
-            summary += "Several areas of concern require management attention."
-        else:
-            summary += "Overall financial position is stable with some areas for improvement."
-
         return {
-            "financial_recommendations": financial,
-            "operational_recommendations": operational,
-            "strategic_recommendations": strategic,
-            "risk_mitigation": risk_mitigation,
-            "summary": summary,
+            "top_priorities": top_priorities,
+            "summary": f"Business Health Score is {hs}/100. Stable but requires monitoring."
         }

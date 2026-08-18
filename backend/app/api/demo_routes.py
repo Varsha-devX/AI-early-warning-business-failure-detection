@@ -154,22 +154,36 @@ def _generate_demo_data(company_name: str, industry: str) -> dict:
 
     # --- Recommendations ---
     recommendations = {
-        "financial_recommendations": [
-            {"title": "Improve Cash Flow Management", "description": f"Cash flow ratio is 0.16, below the healthy threshold of 0.50. Accelerate receivables collection, negotiate extended payment terms with creditors, and implement cash flow forecasting.", "priority": "High", "impact": "High"},
-            {"title": "Strengthen Liquidity Position", "description": f"Quick ratio of 0.80 indicates potential short-term liquidity risk. Consider converting slow-moving inventory (₹67.5 Cr) to cash and securing a working capital credit facility.", "priority": "High", "impact": "High"},
-        ],
-        "operational_recommendations": [
-            {"title": "Improve Operating Margins", "description": f"Operating margin at 8.0% is below the industry benchmark of 10%. Conduct a comprehensive cost audit and identify operational inefficiencies.", "priority": "Medium", "impact": "High"},
-            {"title": "Optimize Asset Utilization", "description": f"Return on Assets at 3.33% suggests underutilized assets. Review asset portfolio for divestiture opportunities.", "priority": "Medium", "impact": "Medium"},
-        ],
-        "strategic_recommendations": [
-            {"title": "Diversify Revenue Streams", "description": f"Revenue concentration risk should be mitigated through product/market diversification to reduce dependency on primary revenue sources.", "priority": "Medium", "impact": "High"},
-        ],
-        "risk_mitigation": [
-            {"title": "Address Workforce Restructuring", "description": f"The announced layoffs of 200 employees require a structured transition plan to maintain operational continuity and employee morale.", "priority": "High", "impact": "High"},
-            {"title": "Resolve Supplier Dispute", "description": f"The ongoing supplier dispute risks further supply chain disruption. Engage in mediation and develop alternative supplier arrangements.", "priority": "High", "impact": "Medium"},
-        ],
-        "summary": f"Business Health Score is 58.5/100. Several areas require proactive management intervention. Key priorities include improving cash flow management, strengthening liquidity, and resolving the ongoing supplier dispute.",
+        "summary": "Your business is currently under financial pressure. Cash flow and liquidity need the most attention.",
+        "top_priorities": [
+            {
+                "title": "Cash Is Leaving the Business Faster Than It Comes In",
+                "priority": "Critical",
+                "problem": "The business is currently spending more cash than it generates from normal operations.",
+                "why_it_matters": "If this continues, available cash can fall quickly and the business may need emergency funding.",
+                "evidence": "Cash flow ratio is 0.16.",
+                "first_step": "Review unpaid customer invoices and your largest discretionary expenses.",
+                "potential_impact": "Better cash availability and lower financial pressure."
+            },
+            {
+                "title": "Cash Reserves Need Attention",
+                "priority": "High",
+                "problem": "The business doesn't have enough short-term assets to easily cover its upcoming bills.",
+                "why_it_matters": "This means you might struggle to pay suppliers or meet payroll if cash doesn't come in fast enough.",
+                "evidence": "Quick ratio is 0.80.",
+                "first_step": "Identify old inventory and run a promotion to sell it fast.",
+                "potential_impact": "More breathing room to pay upcoming expenses."
+            },
+            {
+                "title": "A Supplier Dispute Needs Resolving",
+                "priority": "Medium",
+                "problem": "A dispute with a major supplier is threatening the supply chain.",
+                "why_it_matters": "Supply chain disruptions can halt operations entirely, preventing revenue generation.",
+                "evidence": "News flagged 'Lawsuit / Dispute' regarding raw material delays.",
+                "first_step": "Arrange an executive meeting with the supplier and qualify an alternative vendor.",
+                "potential_impact": "Stabilization of the supply chain."
+            }
+        ]
     }
 
     # --- Executive Report ---
