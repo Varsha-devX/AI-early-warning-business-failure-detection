@@ -57,14 +57,22 @@ class PDFExtractor:
                 total_pages = len(pdf.pages)
                 logger.info(f"PDF has {total_pages} pages")
 
-                for i, page in enumerate(pdf.pages):
+                # Limit to first 30 pages to prevent OOM on memory-constrained servers.
+                # Financial statements have key data in the first few pages.
+                max_pages = min(total_pages, 30)
+                if max_pages < total_pages:
+                    logger.warning(f"Large PDF detected ({total_pages} pages). Processing only first {max_pages} pages to save memory.")
+
+                for i in range(max_pages):
+                    page = pdf.pages[i]
                     # Try pdfplumber text extraction first
                     page_text = page.extract_text() or ""
 
-                    # FAST PATH: Skip OCR and table extraction for the middle pages of huge PDFs
-                    if total_pages > 20 and (10 <= i <= total_pages - 10):
+                    # FAST PATH: Skip OCR and table extraction for middle pages
+                    if max_pages > 20 and (10 <= i <= max_pages - 10):
                         page_texts.append(page_text)
                         all_text.append(page_text)
+                        page.flush_cache()
                         continue
 
                     # If page has very little text, try OCR
@@ -88,6 +96,9 @@ class PDFExtractor:
                                     "page": i + 1,
                                     "data": cleaned_table
                                 })
+
+                    # Free page memory immediately
+                    page.flush_cache()
 
             if ocr_pages > total_pages / 2:
                 method = "ocr"
