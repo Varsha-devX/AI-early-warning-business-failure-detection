@@ -96,7 +96,9 @@ def create_app() -> FastAPI:
             "http://localhost:3000",
             "https://ai-early-warning-business-fail-git-7fda50-varsha-devxs-projects.vercel.app",
             "https://ai-early-warning-business-failure-d-dun.vercel.app",
-            "https://ai-early-warning-business-fail.vercel.app"
+            "https://ai-early-warning-business-fail.vercel.app",
+            "https://ai-early-warning-business-failure-d.vercel.app",
+            "https://ai-early-warning-business-failure-detection-glb04zcr9.vercel.app"
         ],
         allow_credentials=True,
         allow_methods=["*"],
