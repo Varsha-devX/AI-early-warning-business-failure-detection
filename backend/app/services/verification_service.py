@@ -161,9 +161,11 @@ class CompanyVerificationService:
                 import google.generativeai as genai
                 genai.configure(api_key=gemini_key)
                 model = genai.GenerativeModel("gemini-1.5-flash")
-                prompt = f"""Extract the official company name or entity name from the following text of a financial statement. 
-Return ONLY the company name (e.g. 'Infosys Limited' or 'ABC Technologies Ltd') and absolutely nothing else.
-If you cannot confidently identify a company name, return 'Unknown'.
+                prompt = f"""Extract ONLY the official corporate entity name from the following text of a financial statement. 
+Rules:
+1. Return ONLY the company name (e.g. 'Infosys Limited' or 'Amazon.com, Inc.') and absolutely nothing else.
+2. If the text is a date (e.g., 'for the quarter ended March 31'), DO NOT return it.
+3. If you cannot confidently identify a legitimate corporate entity name, return exactly 'Unknown'.
 
 TEXT SAMPLE:
 {sample_text}
