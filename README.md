@@ -353,4 +353,5 @@ MIT License
 **Built with ❤️ for the FinTech Risk Intelligence community**
 
 
-https://ai-early-warning-business-fail-git-7fda50-varsha-devxs-projects.vercel.app/
+frontend : https://ai-early-warning-business-fail-git-7fda50-varsha-devxs-projects.vercel.app/
+backend : https://ai-early-warning-business-failure.onrender.com
