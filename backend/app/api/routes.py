@@ -247,8 +247,10 @@ async def upload_and_analyze(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Upload and analyze failed: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error during upload and analyze")
+        import traceback
+        error_details = traceback.format_exc()
+        logger.error(f"Upload and analyze failed: {e}\n{error_details}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
 @router.post(
