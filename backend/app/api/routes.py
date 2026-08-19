@@ -177,6 +177,9 @@ async def upload_and_analyze(
     financial_content = await financial_file.read()
     if len(financial_content) == 0:
         raise HTTPException(status_code=400, detail="Empty financial file")
+        
+    if len(financial_content) > 5 * 1024 * 1024:  # 5MB limit
+        raise HTTPException(status_code=413, detail="File too large! This free-tier server only has 512MB RAM and cannot process files over 5MB. Please upload a smaller file.")
 
     try:
         # Upload financial document
