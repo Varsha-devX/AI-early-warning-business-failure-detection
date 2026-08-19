@@ -25,23 +25,8 @@ class SentimentAnalyzer:
 
     def _load_model(self) -> None:
         """Load the FinBERT model. Falls back gracefully if unavailable."""
-        try:
-            from transformers import pipeline as hf_pipeline
-
-            logger.info("Loading FinBERT model (ProsusAI/finbert)...")
-            self.pipeline = hf_pipeline(
-                "sentiment-analysis",
-                model="ProsusAI/finbert",
-                tokenizer="ProsusAI/finbert",
-                top_k=None,
-                truncation=True,
-                max_length=512,
-            )
-            self._finbert_available = True
-            logger.info("FinBERT model loaded successfully")
-        except Exception as e:
-            logger.warning(f"FinBERT loading failed: {e}. Using keyword-based fallback.")
-            self._finbert_available = False
+        logger.warning("FinBERT disabled for memory limits. Using keyword-based fallback.")
+        self._finbert_available = False
 
     def analyze(self, text: str | list[str]) -> dict:
         """
