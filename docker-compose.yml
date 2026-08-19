@@ -30,7 +30,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://admin:changeme_secure_password@postgres:5432/corporate_health
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-      - GEMINI_MODEL=gemini-2.5-pro
+      - GEMINI_MODEL=gemini-1.5-flash
       - UPLOAD_DIR=/app/uploads
       - REPORTS_DIR=/app/reports
       - TRAINED_MODELS_DIR=/app/trained_models
