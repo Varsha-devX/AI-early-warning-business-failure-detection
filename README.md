@@ -355,3 +355,7 @@ MIT License
 
 frontend : https://ai-early-warning-business-fail-git-7fda50-varsha-devxs-projects.vercel.app/
 backend : https://ai-early-warning-business-failure.onrender.com
+
+
+
+https://ai-early-warning-business-failure-detection-glb04zcr9.vercel.app/
